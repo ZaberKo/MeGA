@@ -54,8 +54,9 @@ def train(train_loader, model, criterion,  optimizer, epoch):
             loss_list.append(reduce_tensor(loss.detach()).item())
             prec1_list.append(reduce_tensor(prec1).item())
 
-            with amp.scale_loss(loss, optimizer) as scaled_loss:
-                scaled_loss.backward()
+            # with amp.scale_loss(loss, optimizer) as scaled_loss:
+            #     scaled_loss.backward()
+            loss.backward()
 
         optimizer.step()
 
@@ -94,7 +95,7 @@ def main():
         train_config['data_path'], train_batch_size, val_batch_size, num_workers=2, is_distributed=True)
 
     model = Hypernet(num_classes=100)
-    model=nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
 
     optimizer = torch.optim.SGD(
@@ -105,10 +106,10 @@ def main():
         nesterov=True
     )
 
-    model, optimizer = amp.initialize(model, optimizer,
-                                      opt_level='O0',
-                                      #   loss_scale=8.0
-                                      )
+    # model, optimizer = amp.initialize(model, optimizer,
+    #                                   opt_level='O0',
+    #                                   #   loss_scale=8.0
+    #                                   )
 
     model = DDP(model,
                 device_ids=[local_rank],
@@ -123,7 +124,7 @@ def main():
     )
 
     # criterion = torch.nn.CrossEntropyLoss().cuda()
-    criterion=LabelSmoothingCELoss().cuda()
+    criterion = LabelSmoothingCELoss().cuda()
     for epoch in range(train_config['epoch']):
         print_local('epoch {} start'.format(epoch))
         print_local('current lr: {}'.format(schedule_lr.get_lr()[0]))
@@ -139,6 +140,16 @@ def main():
         print_local('epoch {} time: {:.3f} s'.format(
             epoch, time.time()-begin_time))
         print_local('\n\n')
+
+        if local_rank==0 and (epoch+1) % train_config['save_freq'] == 0:
+            save_checkpoint(
+                {
+                    'epoch': epoch + 1,
+                    'state_dict': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                },
+                'hypernet_{}.pth'.format(epoch+1)
+            )
 
 
 if __name__ == "__main__":

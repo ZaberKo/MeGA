@@ -157,3 +157,8 @@ def correct_cnt(output, target, topk=(1,)):
         # res.append(correct_k.div_(batch_size))
         res.append(correct_k)
     return res
+
+
+
+def save_checkpoint(state, filename='checkpoint.pth'):
+    torch.save(state, filename)
