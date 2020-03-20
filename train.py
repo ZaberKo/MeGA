@@ -17,6 +17,7 @@ import torch.backends.cudnn as cudnn
 
 
 from hypernet import Hypernet
+from label_smooth import LabelSmoothingCELoss
 from utils import *
 from dataloader import *
 
@@ -58,13 +59,11 @@ def train(train_loader, model, criterion,  optimizer, epoch):
         losses.update(loss_list.mean(), images.shape[0])
         batch_time.update(time.time()-begin_time)
 
-
-        if step % 10 == 0:
-            print_local('Train: epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
+        if step%train_config['display_freq'] == 0:
+            print('Train: epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
                 epoch, step, batch_time.avg, losses.val, loss_list.std(), losses.avg, top1.val, prec1_list.std(), top1.avg))
 
         begin_time=time.time()
-
 
 
 
@@ -72,17 +71,15 @@ def main():
     seed=train_config['seed']
     random.seed(seed)
     np.random.seed(seed)
-    train_batch_size=train_config['train_batch_size']
-    val_batch_size=train_config['val_batch_size']
-    cudnn.benchmark=True  # cudnn auto-tunner
-
-
     torch.manual_seed(seed)
 
-    device_ids=list(range(torch.cuda.device_count()))
+    cudnn.benchmark=True  # cudnn auto-tunner
 
+    device_ids=list(range(torch.cuda.device_count()))
+    train_batch_size=train_config['train_batch_size']
+    val_batch_size=train_config['val_batch_size']
     train_loader, val_loader=load_cifar100(
-        train_config['data_path'], train_batch_size, val_batch_size)
+        train_config['data_path'], train_batch_size, val_batch_size,num_workers=2)
 
     model=Hypernet(num_classes=100)
     model=model.cuda()
@@ -110,8 +107,8 @@ def main():
         eta_min=1e-5
     )
 
-    criterion=torch.nn.CrossEntropyLoss().cuda()
-
+    # criterion=torch.nn.CrossEntropyLoss().cuda()
+    criterion=LabelSmoothingCELoss().cuda()
     for epoch in range(train_config['epoch']):
         print('epoch {} start'.format(epoch))
         print('current lr: {}'.format(schedule_lr.get_lr()[0]))

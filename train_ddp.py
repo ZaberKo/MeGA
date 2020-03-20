@@ -57,13 +57,6 @@ def train(train_loader, model, criterion,  optimizer, epoch):
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
 
-        # for i,param in enumerate(model.parameters()):
-        #     if i==1000:
-        #         print('rank{} grad:{}'.format(local_rank,param.grad))
-        #         break
-
-        # time.sleep(3)
-        # exit()
         optimizer.step()
 
         loss_list = np.array(loss_list)

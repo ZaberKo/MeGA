@@ -5,15 +5,15 @@
         "data_path":"./dataset",
         "lr":0.045,
         "start_lr_schedule_epoch":0,
-        "train_batch_size":1024,
+        "train_batch_size":128,
         "val_batch_size":256,
-        "epoch":200,
+        "epoch":100,
         "dropfc_rate":0.5,
         "start_dropblock_rate":0,
         "end_dropblock_rate":0.5,
         "dropout_schedule_steps":100,
         "start_dropout_schedule_epoch":0,
-        "display_freq":1
+        "display_freq":10
     },
     "train_config":{
         "seed":42,
