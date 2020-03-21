@@ -3,14 +3,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class hswish(nn.Module):
+    def __init__(self, inplace=False):
+        super(hswish, self).__init__()
+        self.inplace=inplace
     def forward(self, x):
-        out = x * F.relu6(x + 3, inplace=True) / 6
+        out = x * F.relu6(x + 3, inplace=self.inplace) / 6
         return out
 
 
 class hsigmoid(nn.Module):
+    def __init__(self, inplace=False):
+        super(hsigmoid, self).__init__()
+        self.inplace=inplace
     def forward(self, x):
-        out = F.relu6(x + 3, inplace=True) / 6
+        out = F.relu6(x + 3, inplace=self.inplace) / 6
         return out
 
 
@@ -32,23 +38,30 @@ class SeModule(nn.Module):
 
 
 class ChoiceLayer(nn.Module):
-    def __init__(self,in_size,out_size,nolinear,stride):
+    def __init__(self,in_size:int,out_size:int,nolinear:str,stride:int):
         super(ChoiceLayer,self).__init__()
         self.choices=nn.ModuleDict()
         hidden_size3=in_size*3
         hidden_size6=in_size*6
-        self.choices['3x3_e3']=Block(3,in_size,hidden_size3,out_size,nolinear,None,stride)
-        self.choices['3x3_e3_se']=Block(3,in_size,hidden_size3,out_size,nolinear,SeModule(hidden_size3),stride)
-        self.choices['5x5_e3']=Block(5,in_size,hidden_size3,out_size,nolinear,None,stride)
-        self.choices['5x5_e3_se']=Block(5,in_size,hidden_size3,out_size,nolinear,SeModule(hidden_size3),stride)
-        self.choices['7x7_e3']=Block(7,in_size,hidden_size3,out_size,nolinear,None,stride)
-        self.choices['7x7_e3_se']=Block(7,in_size,hidden_size3,out_size,nolinear,SeModule(hidden_size3),stride)
-        self.choices['3x3_e6']=Block(3,in_size,hidden_size6,out_size,nolinear,None,stride)
-        self.choices['3x3_e6_se']=Block(3,in_size,hidden_size6,out_size,nolinear,SeModule(hidden_size6),stride)
-        self.choices['5x5_e6']=Block(5,in_size,hidden_size6,out_size,nolinear,None,stride)
-        self.choices['5x5_e6_se']=Block(5,in_size,hidden_size6,out_size,nolinear,SeModule(hidden_size6),stride)
-        self.choices['7x7_e6']=Block(7,in_size,hidden_size6,out_size,nolinear,None,stride)
-        self.choices['7x7_e6_se']=Block(7,in_size,hidden_size6,out_size,nolinear,SeModule(hidden_size6),stride)
+
+        def gen_nolinear():
+            if noliear=='hswish':
+                return hswish(inplace=True)
+            else if nolinear=='relu':
+                return nn.ReLU(inplace=True)
+
+        self.choices['3x3_e3']=Block(3,in_size,hidden_size3,out_size,gen_nolinear(),None,stride)
+        self.choices['3x3_e3_se']=Block(3,in_size,hidden_size3,out_size,gen_nolinear(),SeModule(hidden_size3),stride)
+        self.choices['5x5_e3']=Block(5,in_size,hidden_size3,out_size,gen_nolinear(),None,stride)
+        self.choices['5x5_e3_se']=Block(5,in_size,hidden_size3,out_size,gen_nolinear(),SeModule(hidden_size3),stride)
+        self.choices['7x7_e3']=Block(7,in_size,hidden_size3,out_size,gen_nolinear(),None,stride)
+        self.choices['7x7_e3_se']=Block(7,in_size,hidden_size3,out_size,gen_nolinear(),SeModule(hidden_size3),stride)
+        self.choices['3x3_e6']=Block(3,in_size,hidden_size6,out_size,gen_nolinear(),None,stride)
+        self.choices['3x3_e6_se']=Block(3,in_size,hidden_size6,out_size,gen_nolinear(),SeModule(hidden_size6),stride)
+        self.choices['5x5_e6']=Block(5,in_size,hidden_size6,out_size,gen_nolinear(),None,stride)
+        self.choices['5x5_e6_se']=Block(5,in_size,hidden_size6,out_size,gen_nolinear(),SeModule(hidden_size6),stride)
+        self.choices['7x7_e6']=Block(7,in_size,hidden_size6,out_size,gen_nolinear(),None,stride)
+        self.choices['7x7_e6_se']=Block(7,in_size,hidden_size6,out_size,gen_nolinear(),SeModule(hidden_size6),stride)
         # self.choices['skip']=SkipOP(in_size,out_size,stride)
 
 

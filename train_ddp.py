@@ -1,7 +1,8 @@
 import argparse
 import time
 import random
-import json
+import yaml
+import os
 
 import numpy as np
 import torch
@@ -16,8 +17,8 @@ import apex.parallel
 import torch.backends.cudnn as cudnn
 
 
-from hypernet import Hypernet
-from label_smooth import LabelSmoothingCELoss
+from modules.hypernet import Hypernet_Large,Hypernet_Small
+from modules.label_smooth import LabelSmoothingCELoss
 from utils import *
 from dataloader import *
 
@@ -66,7 +67,7 @@ def train(train_loader, model, criterion,  optimizer, epoch):
         losses.update(loss_list.mean(), images.shape[0])
         batch_time.update(time.time()-begin_time)
 
-        if step % train_config['display_freq'] == 0:
+        if step % visualization_config['display_freq'] == 0:
             print_local('Train: epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
                 epoch, step, batch_time.avg, losses.val, loss_list.std(), losses.avg, top1.val, prec1_list.std(), top1.avg))
 
@@ -92,9 +93,10 @@ def main():
     train_batch_size = train_config['train_batch_size']//n_gpu
     val_batch_size = train_config['val_batch_size']//n_gpu
     train_loader, val_loader = load_cifar100(
-        train_config['data_path'], train_batch_size, val_batch_size, num_workers=2, is_distributed=True)
+        data_path, train_batch_size, val_batch_size, num_workers=2, is_distributed=True)
 
-    model = Hypernet(num_classes=100)
+ 
+    model = Hypernet_Large(num_classes=100)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
 
@@ -141,20 +143,21 @@ def main():
             epoch, time.time()-begin_time))
         print_local('\n\n')
 
-        if local_rank==0 and (epoch+1) % train_config['save_freq'] == 0:
+        if local_rank == 0 and (epoch+1) % train_config['save_freq'] == 0:
             save_checkpoint(
                 {
                     'epoch': epoch + 1,
                     'state_dict': model.state_dict(),
                     'optimizer': optimizer.state_dict(),
                 },
-                'hypernet_{}.pth'.format(epoch+1)
+                os.path.join(train_config['checkpoint_path'],
+                             'hypernet_{}.pth'.format(epoch+1))
             )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='config.json',
+    parser.add_argument('--config_path', default='config.yaml',
                         type=str, help="config file path")
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument('--do_train', action='store_true')
@@ -164,7 +167,9 @@ if __name__ == "__main__":
     config_path = args.config_path
 
     with open(config_path, mode='r', encoding='utf-8') as f:
-        config = json.load(f)
-
+        config = yaml.load(f)
+    
+    data_path=config['data_path']
     train_config = config['train_hypernet_config']
+    visualization_config=config['visualization_config']
     main()

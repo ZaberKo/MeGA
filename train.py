@@ -1,7 +1,8 @@
 import argparse
 import time
 import random
-import json
+import yaml
+import os
 
 import numpy as np
 import torch
@@ -16,8 +17,8 @@ import apex.parallel
 import torch.backends.cudnn as cudnn
 
 
-from hypernet import Hypernet
-from label_smooth import LabelSmoothingCELoss
+from modules.hypernet import Hypernet_Large,Hypernet_Small
+from modules.label_smooth import LabelSmoothingCELoss
 from utils import *
 from dataloader import *
 
@@ -59,14 +60,11 @@ def train(train_loader, model, criterion,  optimizer, epoch):
         losses.update(loss_list.mean(), images.shape[0])
         batch_time.update(time.time()-begin_time)
 
-        if step % train_config['display_freq'] == 0:
+        if step % visualization_config['display_freq'] == 0:
             print('Train: epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
                 epoch, step, batch_time.avg, losses.val, loss_list.std(), losses.avg, top1.val, prec1_list.std(), top1.avg))
 
         begin_time = time.time()
-
-
-
 
 
 def main():
@@ -81,7 +79,7 @@ def main():
     train_batch_size = train_config['train_batch_size']
     val_batch_size = train_config['val_batch_size']
     train_loader, val_loader = load_cifar100(
-        train_config['data_path'], train_batch_size, val_batch_size, num_workers=2)
+       data_path, train_batch_size, val_batch_size, num_workers=2)
 
     model = Hypernet(num_classes=100)
     model = model.cuda()
@@ -128,13 +126,15 @@ def main():
         print('\n\n')
 
         if (epoch+1) % train_config['save_freq'] == 0:
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'state_dict': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-            }, 'hypernet_{}.pth'.format(epoch+1))
-
-
+            save_checkpoint(
+                {
+                    'epoch': epoch + 1,
+                    'state_dict': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                },
+                os.path.join(train_config['checkpoint_path'],
+                             'hypernet_{}.pth'.format(epoch+1))
+            )
 
 
 if __name__ == "__main__":
@@ -142,14 +142,16 @@ if __name__ == "__main__":
     parser.add_argument('--config_path', default='config.json',
                         type=str, help="config file path")
     parser.add_argument('--do_train', action='store_true')
-    parser.add_argument('--resume_file',default=None,type=str,help='enable resume and specify the checkpoint file')
+    parser.add_argument('--resume_file', default=None, type=str,
+                        help='enable resume and specify the checkpoint file')
     parser.add_argument('--do_eval', action='store_true')
     args = parser.parse_args()
     config_path = args.config_path
 
-
     with open(config_path, mode='r', encoding='utf-8') as f:
-        config = json.load(f)
-
+        config = yaml.load(f)
+    
+    data_path=config['data_path']
     train_config = config['train_hypernet_config']
+    visualization_config=config['visualization_config']
     main()

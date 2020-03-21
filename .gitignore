@@ -122,3 +122,5 @@ dmypy.json
 /reference
 /log
 /dataset
+.empty
+*.pth
