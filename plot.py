@@ -31,19 +31,20 @@ if __name__ == "__main__":
     x=np.linspace(0,len(train_loss)-1,len(train_loss))
 
     
-    fig=plt.figure(figsize=(12,6),dpi=300)
+    fig=plt.figure(figsize=(12,12),dpi=300)
     
 
     # ax.yaxis.set_major_locator(plt.MultipleLocator(10))
 
     # ax.set_ylim(0,100)
-    # plt.ylim(0,100)
-    ax1=fig.add_subplot(1,2,1)
+    
+    ax1=fig.add_subplot(2,1,1)
     ax1.plot(x,train_loss,label='train loss')
     ax1.set_title('train loss')
 
-    ax2=fig.add_subplot(1,2,2)
+    ax2=fig.add_subplot(2,1,2)
     ax2.plot(x,train_acc,label='train acc')
     ax2.set_title('train acc')
+    ax2.set_ylim(0,100)
     
     plt.savefig(os.path.join(directory,'{}.png'.format(filename)))

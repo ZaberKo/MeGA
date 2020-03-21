@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
+# Note: the optimal value of LSCE is not 0
 class LabelSmoothingCELoss(nn.Module):
     def __init__(self, smoothing=0.1):
         super(LabelSmoothingCELoss, self).__init__()
@@ -27,9 +27,18 @@ class LabelSmoothingCELoss(nn.Module):
 
 
 # if __name__ == "__main__":
-#     loss = LabelSmoothingCELoss()
-#     input = torch.randn(3, 100, requires_grad=True)
-#     target = torch.empty(3, dtype=torch.long).random_(100)
-#     print(target)
-#     output = loss(input, target)
-#     output.backward()
+#     loss = LabelSmoothingCELoss(smoothing=0.01)
+#     # input = torch.randn(3, 100, requires_grad=True)
+#     # target = torch.empty(3, dtype=torch.long).random_(100)
+#     # print(target)
+#     # output = loss(input, target)
+
+#     target = torch.empty(1, dtype=torch.long).random_(100)
+#     idx=target.item()
+#     print(idx)
+#     import numpy as np
+#     for i in np.linspace(0,20,21):
+#         input = torch.zeros((1,100))
+#         input[0][idx]=i
+#         # print(input)
+#         print(i,loss(input,target).item())

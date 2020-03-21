@@ -49,68 +49,68 @@ def choice_idx2name(idx):
 def gene2config(gene=None):
     # template based on mobilenetv3
     template = [
-        # in_size,out_size,expansion_rate,kernel_size,use_se,activation,stride
-        [16, 16, 1, 3, 'none', 'relu', 1],
-        [16, 24, 4, 3, 'none', 'relu', 2],  # 112x112->56x56
-        [24, 24, 3, 3, 'none', 'relu', 1],
-        [24, 40, 3, 5, 'se', 'hswish', 2],  # 56x56->28x28
-        [40, 40, 3, 5, 'se', 'hswish', 1],
-        [40, 40, 3, 5, 'se', 'hswish', 1],
-        [40, 80, 6, 3, 'none', 'hswish', 2],  # 28x28->14x14
-        [80, 80, 2.5, 3, 'none', 'hswish', 1],
-        [80, 80, 2.3, 3, 'none', 'hswish', 1],
-        [80, 80, 2.3, 3, 'none', 'hswish', 1],
-        [80, 112, 6, 3, 'se', 'hswish', 1],
-        [112, 112, 6, 3, 'se', 'hswish', 1],
-        [112, 160, 6, 5, 'se', 'hswish', 2],  # 14x14->7x7
-        [160, 160, 4.2, 5, 'se', 'hswish', 1],
-        [160, 160, 6, 5, 'se', 'hswish', 1],  # final channel:960
+        # in_size,out_size,expansion_rate,kernel_size,use_se,activation,stride,dropblock_size
+        [16, 16, 1, 3, 'none', 'relu', 1, 0],
+        [16, 24, 4, 3, 'none', 'relu', 2, 0],  # 112x112->56x56
+        [24, 24, 3, 3, 'none', 'relu', 1, 0],
+        [24, 40, 3, 5, 'se', 'hswish', 2, 0],  # 56x56->28x28
+        [40, 40, 3, 5, 'se', 'hswish', 1, 7],
+        [40, 40, 3, 5, 'se', 'hswish', 1, 7],
+        [40, 80, 6, 3, 'none', 'hswish', 2, 0],  # 28x28->14x14
+        [80, 80, 2.5, 3, 'none', 'hswish', 1, 5],
+        [80, 80, 2.3, 3, 'none', 'hswish', 1, 5],
+        [80, 80, 2.3, 3, 'none', 'hswish', 1, 5],
+        [80, 112, 6, 3, 'se', 'hswish', 1, 5],
+        [112, 112, 6, 3, 'se', 'hswish', 1, 5],
+        [112, 160, 6, 5, 'se', 'hswish', 2, 0],  # 14x14->7x7
+        [160, 160, 4.2, 5, 'se', 'hswish', 1, 0],
+        [160, 160, 6, 5, 'se', 'hswish', 1, 0],  # final channel:960
     ]
 
-    def update(layer,kernel_size,expansion_rate,use_se):
-        template[layer][3]=kernel_size
-        template[layer][2]=expansion_rate
-        template[layer][5]='se' if use_se else 'none'
+    def update(layer, kernel_size, expansion_rate, use_se):
+        template[layer][3] = kernel_size
+        template[layer][2] = expansion_rate
+        template[layer][5] = 'se' if use_se else 'none'
 
     if gene is not None:
         for i, choice in enumerate(gene):
-            layer=i+1
+            layer = i+1
             if idx == 0:
                 # '3x3_e3'
-                update(layer,3,3,False)
+                update(layer, 3, 3, False)
             elif idx == 1:
                 # '3x3_e3_se'
-                update(layer,3,3,True)
+                update(layer, 3, 3, True)
             elif idx == 2:
                 # '5x5_e3'
-                update(layer,5,3,False)
+                update(layer, 5, 3, False)
             elif idx == 3:
                 # '5x5_e3_se'
-                update(layer,5,3,True)
+                update(layer, 5, 3, True)
             elif idx == 4:
                 # '7x7_e3'
-                update(layer,7,3,False)
+                update(layer, 7, 3, False)
             elif idx == 5:
                 # '7x7_e3_se'
-                update(layer,7,3,True)
+                update(layer, 7, 3, True)
             elif idx == 6:
                 # '3x3_e6'
-                update(layer,3,6,False)
+                update(layer, 3, 6, False)
             elif idx == 7:
                 # '3x3_e6_se'
-                update(layer,3,6,True)
+                update(layer, 3, 6, True)
             elif idx == 8:
                 # '5x5_e6'
-                update(layer,5,6,False)
+                update(layer, 5, 6, False)
             elif idx == 9:
                 # '5x5_e6_se'
-                update(layer,5,6,True)
+                update(layer, 5, 6, True)
             elif idx == 10:
                 # '7x7_e6'
-                update(layer,7,6,False)
+                update(layer, 7, 6, False)
             elif idx == 11:
                 # '7x7_e6_se'
-                update(layer,7,6,True)
+                update(layer, 7, 6, True)
 
     return template
 

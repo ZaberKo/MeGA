@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import init
-from modules import *
+from blocks import *
 
 
 class Hypernet_Large(nn.Module):
