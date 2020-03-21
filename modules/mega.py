@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import init
-from blocks import *
+from .blocks import *
 
 r'''
     stand-alone model, used for retraining from scratch

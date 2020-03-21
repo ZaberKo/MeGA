@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 from torch.nn import init
-from blocks import *
+from .blocks import *
 
 
 class Hypernet_Large(nn.Module):
     def __init__(self, num_classes=1000):
-        super(Hypernet, self).__init__()
+        super(Hypernet_Large, self).__init__()
         self.stem=nn.Sequential(
             nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(16),
@@ -88,7 +88,7 @@ class Hypernet_Large(nn.Module):
 
 class Hypernet_Small(nn.Module):
     def __init__(self, num_classes=1000):
-        super(Hypernet, self).__init__()
+        super(Hypernet_Small, self).__init__()
         self.stem=nn.Sequential(
             nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(16),

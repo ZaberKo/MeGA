@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dropblock import ScheduleDropBlock
+from .dropblock import ScheduleDropBlock
 
 
 class hswish(nn.Module):
@@ -50,36 +50,36 @@ class ChoiceLayer(nn.Module):
         hidden_size3 = in_size*3
         hidden_size6 = in_size*6
 
-        def gen_nolinear():
-            if noliear == 'hswish':
+        def gen_nolinear(nolinear):
+            if nolinear == 'hswish':
                 return hswish(inplace=True)
-            else if nolinear == 'relu':
+            elif nolinear == 'relu':
                 return nn.ReLU(inplace=True)
 
         self.choices['3x3_e3'] = Block(
-            3, in_size, hidden_size3, out_size, gen_nolinear(), None, stride)
+            3, in_size, hidden_size3, out_size, gen_nolinear(nolinear), None, stride)
         self.choices['3x3_e3_se'] = Block(
-            3, in_size, hidden_size3, out_size, gen_nolinear(), SeModule(hidden_size3), stride)
+            3, in_size, hidden_size3, out_size, gen_nolinear(nolinear), SeModule(hidden_size3), stride)
         self.choices['5x5_e3'] = Block(
-            5, in_size, hidden_size3, out_size, gen_nolinear(), None, stride)
+            5, in_size, hidden_size3, out_size, gen_nolinear(nolinear), None, stride)
         self.choices['5x5_e3_se'] = Block(
-            5, in_size, hidden_size3, out_size, gen_nolinear(), SeModule(hidden_size3), stride)
+            5, in_size, hidden_size3, out_size, gen_nolinear(nolinear), SeModule(hidden_size3), stride)
         self.choices['7x7_e3'] = Block(
-            7, in_size, hidden_size3, out_size, gen_nolinear(), None, stride)
+            7, in_size, hidden_size3, out_size, gen_nolinear(nolinear), None, stride)
         self.choices['7x7_e3_se'] = Block(
-            7, in_size, hidden_size3, out_size, gen_nolinear(), SeModule(hidden_size3), stride)
+            7, in_size, hidden_size3, out_size, gen_nolinear(nolinear), SeModule(hidden_size3), stride)
         self.choices['3x3_e6'] = Block(
-            3, in_size, hidden_size6, out_size, gen_nolinear(), None, stride)
+            3, in_size, hidden_size6, out_size, gen_nolinear(nolinear), None, stride)
         self.choices['3x3_e6_se'] = Block(
-            3, in_size, hidden_size6, out_size, gen_nolinear(), SeModule(hidden_size6), stride)
+            3, in_size, hidden_size6, out_size, gen_nolinear(nolinear), SeModule(hidden_size6), stride)
         self.choices['5x5_e6'] = Block(
-            5, in_size, hidden_size6, out_size, gen_nolinear(), None, stride)
+            5, in_size, hidden_size6, out_size, gen_nolinear(nolinear), None, stride)
         self.choices['5x5_e6_se'] = Block(
-            5, in_size, hidden_size6, out_size, gen_nolinear(), SeModule(hidden_size6), stride)
+            5, in_size, hidden_size6, out_size, gen_nolinear(nolinear), SeModule(hidden_size6), stride)
         self.choices['7x7_e6'] = Block(
-            7, in_size, hidden_size6, out_size, gen_nolinear(), None, stride)
+            7, in_size, hidden_size6, out_size, gen_nolinear(nolinear), None, stride)
         self.choices['7x7_e6_se'] = Block(
-            7, in_size, hidden_size6, out_size, gen_nolinear(), SeModule(hidden_size6), stride)
+            7, in_size, hidden_size6, out_size, gen_nolinear(nolinear), SeModule(hidden_size6), stride)
         # self.choices['skip']=SkipOP(in_size,out_size,stride)
     def forward(self, x, choice):
         return self.choices[choice](x)

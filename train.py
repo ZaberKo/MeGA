@@ -81,7 +81,7 @@ def main():
     train_loader, val_loader = load_cifar100(
        data_path, train_batch_size, val_batch_size, num_workers=2)
 
-    model = Hypernet(num_classes=100)
+    model = Hypernet_Large(num_classes=100)
     model = model.cuda()
 
     optimizer = torch.optim.SGD(
@@ -139,7 +139,7 @@ def main():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='config.json',
+    parser.add_argument('--config_path', default='config.yaml',
                         type=str, help="config file path")
     parser.add_argument('--do_train', action='store_true')
     parser.add_argument('--resume_file', default=None, type=str,
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     config_path = args.config_path
 
     with open(config_path, mode='r', encoding='utf-8') as f:
-        config = yaml.load(f)
+        config = yaml.load(f,Loader=yaml.SafeLoader)
     
     data_path=config['data_path']
     train_config = config['train_hypernet_config']

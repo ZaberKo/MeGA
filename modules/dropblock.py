@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from dropout_modules import LinearScheduler
+from .dropout_modules import LinearScheduler
 
 r'''
     see "https://github.com/miguelvr/dropblock", we modified it.

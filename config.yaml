@@ -1,7 +1,7 @@
 data_path: "./dataset"
 
 visualization_config:
-    dispaly_freq: 1 # unit: iteration
+    display_freq: 1 # unit: iteration
 
 train_hypernet_config:
     seed: 42

@@ -167,7 +167,7 @@ if __name__ == "__main__":
     config_path = args.config_path
 
     with open(config_path, mode='r', encoding='utf-8') as f:
-        config = yaml.load(f)
+        config = yaml.load(f,Loader=yaml.SafeLoader)
     
     data_path=config['data_path']
     train_config = config['train_hypernet_config']

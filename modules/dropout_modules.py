@@ -1,5 +1,5 @@
 import torch 
-import torch.nn
+import torch.nn as nn
 
 class LinearScheduler(nn.Module):
     def __init__(self, module):
