@@ -3,6 +3,7 @@ import torch.distributed as dist
 from torch import nn
 import math
 import numpy as np
+import os
 
 # note: this equation selects the maximum padding it can get
 
@@ -225,5 +226,8 @@ def correct_cnt(output, target, topk=(1,)):
     return res
 
 
-def save_checkpoint(state, filename='checkpoint.pth'):
+def save_checkpoint(state, filename='./checkpoint.pth'):
+    dir_path=os.path.dirname(filename)
+    if len(dir_path)>0 and not os.path.exists(dir_path):
+        os.makedirs(dir_path)
     torch.save(state, filename)
