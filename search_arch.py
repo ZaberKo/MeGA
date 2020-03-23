@@ -6,6 +6,7 @@ import logging
 import yaml
 import pickle
 import os
+import argparse
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,11 @@ def gen_random_paths(num_layers, num_choices, num_paths=1):
 
 
 if __name__ == "__main__":
-    init_log()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('log_path', default=None,
+                        type=str, help='log file path')
+    args = parser.parse_args()
+    init_log(args.log_path)
     with open('config.yaml', mode='r', encoding='utf-8') as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
 

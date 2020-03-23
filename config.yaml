@@ -6,7 +6,7 @@ visualization_config:
 
 train_hypernet_config:
     model: "small"
-    loss: "LSCE" # "LSCE"|"CE"
+    loss: "CE" # "LSCE"|"CE"
     lr: 0.00375
     train_batch_size: 1024
     val_batch_size: 2048
@@ -21,6 +21,6 @@ val_hypernet_config:
 
 search_config:
     val_batch_size: 2500
-    checkpoint_filepath: "./checkpoint/hypernet/hypernet_250.pth"
+    checkpoint_filepath: "./checkpoint/hypernet/hypernet_500.pth"
     
     
