@@ -4,13 +4,15 @@ import os
 import logging.config
 import yaml
 
-def init_log():
+def init_log(filename=None):
     with open('logging.yaml', 'r') as f:
         config = yaml.load(f,Loader=yaml.SafeLoader)
+    if filename is not None:
+        config['handlers']['mplog']['filename']=filename
     logging.config.dictConfig(config)
 
 
-class MultiProcessingLog(logging.Handler):
+class MultiProcessingHandler(logging.Handler):
     def __init__(self, filename, mode):
         logging.Handler.__init__(self)
         self._handler = FileHandler(filename, mode)

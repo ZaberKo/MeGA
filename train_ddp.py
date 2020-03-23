@@ -16,12 +16,15 @@ import apex.parallel
 
 import torch.backends.cudnn as cudnn
 
-
+from mplog import init_log
 from modules.hypernet import Hypernet_Large, Hypernet_Small
 from modules.label_smooth import LabelSmoothingCELoss
 from utils import *
 from dataloader import *
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 def print_local(*text, **args):
     if local_rank == 0:
@@ -59,7 +62,7 @@ def evaluate(val_loader, model, criterion, training=False):
             batch_time.update(time.time()-begin_time)
 
             if not training:
-                print_local('Val  : epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
+                logger.info('Val  : epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
                     0, step, batch_time.avg, losses.val, loss_list.std(), losses.avg, top1.val, prec1_list.std(), top1.avg))
 
             begin_time = time.time()
@@ -107,7 +110,7 @@ def train(train_loader, model, criterion,  optimizer, epoch):
         batch_time.update(time.time()-begin_time)
 
         if step % visualization_config['display_freq'] == 0:
-            print_local('Train: epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
+            logger.info('Train: epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
                 epoch, step, batch_time.avg, losses.val, loss_list.std(), losses.avg, top1.val, prec1_list.std(), top1.avg))
 
         begin_time = time.time()
@@ -180,24 +183,24 @@ def main():
         model.load_state_dict(checkpoint['state_dict'])
         begin_time = time.time()
         prec1_val = evaluate(val_loader, model, criterion)
-        print_local('val acc :{:.4f} time: {:.3f} s'.format(
+        logger.info('val acc :{:.4f} time: {:.3f} s'.format(
             prec1_val.avg, time.time()-begin_time))
         return
 
     for epoch in range(train_config['epoch']):
-        print_local('epoch {} start'.format(epoch))
-        print_local('current lr: {}'.format(schedule_lr.get_lr()[0]))
+        logger.info('epoch {} start'.format(epoch))
+        logger.info('current lr: {}'.format(schedule_lr.get_lr()[0]))
 
         begin_time = time.time()
 
         prec1_train = train(train_loader, model, criterion,  optimizer, epoch)
         prec1_val = evaluate(val_loader, model, criterion, training=True)
         schedule_lr.step()
-        print_local('train acc: {:.4f}'.format(prec1_train.avg))
-        print_local('val acc: {:.4f}'.format(prec1_val.avg))
-        print_local('epoch {} time: {:.3f} s'.format(
+        logger.info('train acc: {:.4f}'.format(prec1_train.avg))
+        logger.info('val acc: {:.4f}'.format(prec1_val.avg))
+        logger.info('epoch {} time: {:.3f} s'.format(
             epoch, time.time()-begin_time))
-        print_local('\n\n')
+        logger.info('\n\n')
 
         if local_rank == 0 and (epoch+1) % train_config['save_freq'] == 0:
             save_checkpoint(
@@ -214,7 +217,9 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', default='config.yaml',
-                        type=str, help="config file path")
+                        type=str, help='config file path')
+    parser.add_argument('--log_path', default=None,
+                        type=str, help='log file path')
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument('--do_train', action='store_true')
     parser.add_argument('--do_eval', action='store_true')
@@ -230,4 +235,5 @@ if __name__ == "__main__":
     train_config = config['train_hypernet_config']
     val_config = config['val_hypernet_config']
     visualization_config = config['visualization_config']
+    init_log(args.log_path)
     main()
