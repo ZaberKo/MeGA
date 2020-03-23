@@ -144,7 +144,7 @@ def main():
     elif train_config['model'] == 'large':
         model = Hypernet_Large(num_classes=100)
     else:
-        raise 'only support model "small" & "large"'
+        raise ValueError('only support model "small" & "large"')
 
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
@@ -174,8 +174,12 @@ def main():
         eta_min=1e-5
     )
 
-    # criterion = torch.nn.CrossEntropyLoss().cuda()
-    criterion = LabelSmoothingCELoss().cuda()
+    if train_config['loss']=='LSCE':
+        criterion = LabelSmoothingCELoss().cuda()
+    elif train_config['loss']=='CE':
+        criterion = torch.nn.CrossEntropyLoss().cuda()
+    else:
+        raise ValueError('only support loss "LSCE" & "CE"')
 
     if args.do_eval:
         checkpoint = load_checkpoint(

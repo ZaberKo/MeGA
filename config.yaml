@@ -5,11 +5,12 @@ visualization_config:
     display_freq: 1 # unit: iteration
 
 train_hypernet_config:
-    model: 'small'
+    model: "small"
+    loss: "LSCE" # "LSCE"|"CE"
     lr: 0.00375
     train_batch_size: 1024
     val_batch_size: 2048
-    epoch: 500
+    epoch: 300
     save_freq: 10 # unit: epoch
     checkpoint_path: "./checkpoint"
 
