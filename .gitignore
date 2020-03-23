@@ -125,3 +125,5 @@ dmypy.json
 .empty
 *.pth
 test*.py
+*.pickle
+*.log

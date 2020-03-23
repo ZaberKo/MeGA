@@ -136,7 +136,13 @@ def main():
     train_loader, val_loader = load_cifar100(
         data_path, train_batch_size, val_batch_size, num_workers=2, is_distributed=True)
 
-    model = Hypernet_Large(num_classes=100)
+    if train_config['model'] == 'small':
+        model = Hypernet_Small(num_classes=100)
+    elif train_config['model'] == 'large':
+        model = Hypernet_Large(num_classes=100)
+    else:
+        raise 'only support model "small" & "large"'
+
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
 
@@ -169,13 +175,14 @@ def main():
     criterion = LabelSmoothingCELoss().cuda()
 
     if args.do_eval:
-        checkpoint=load_checkpoint(val_config['checkpoint_filepath'],rank=local_rank)
+        checkpoint = load_checkpoint(
+            val_config['checkpoint_filepath'], rank=local_rank)
         model.load_state_dict(checkpoint['state_dict'])
         begin_time = time.time()
-        prec1_val=evaluate(val_loader, model, criterion)
-        print_local('val acc :{:.4f} time: {:.3f} s'.format(prec1_val.avg,time.time()-begin_time))
+        prec1_val = evaluate(val_loader, model, criterion)
+        print_local('val acc :{:.4f} time: {:.3f} s'.format(
+            prec1_val.avg, time.time()-begin_time))
         return
-
 
     for epoch in range(train_config['epoch']):
         print_local('epoch {} start'.format(epoch))
@@ -184,11 +191,12 @@ def main():
         begin_time = time.time()
 
         prec1_train = train(train_loader, model, criterion,  optimizer, epoch)
-        prec1_val = evaluate(val_loader, model, criterion,training=True)
+        prec1_val = evaluate(val_loader, model, criterion, training=True)
         schedule_lr.step()
         print_local('train acc: {:.4f}'.format(prec1_train.avg))
         print_local('val acc: {:.4f}'.format(prec1_val.avg))
-        print_local('epoch {} time: {:.3f} s'.format(epoch, time.time()-begin_time))
+        print_local('epoch {} time: {:.3f} s'.format(
+            epoch, time.time()-begin_time))
         print_local('\n\n')
 
         if local_rank == 0 and (epoch+1) % train_config['save_freq'] == 0:
@@ -218,8 +226,8 @@ if __name__ == "__main__":
         config = yaml.load(f, Loader=yaml.SafeLoader)
 
     data_path = config['data_path']
-    seed=config['seed']
+    seed = config['seed']
     train_config = config['train_hypernet_config']
-    val_config=config['val_hypernet_config']
+    val_config = config['val_hypernet_config']
     visualization_config = config['visualization_config']
     main()
