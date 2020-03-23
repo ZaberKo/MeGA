@@ -125,6 +125,9 @@ class Hypernet_Small(nn.Module):
         self.fc4 = nn.Linear(1280, num_classes)
         self.init_params()
 
+        self.num_layers=10
+        self.num_choices=12
+
     def init_params(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

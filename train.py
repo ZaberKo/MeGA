@@ -37,7 +37,7 @@ def evaluate(val_loader, model, criterion, training=False):
         for step, data in enumerate(val_loader):
             data = tuple(t.cuda() for t in data)
             images, labels = data
-            paths = gen_paths(14, 12)
+            paths = gen_paths(num_layers,num_choices)
             loss_list = []
             prec1_list = []
             for path in paths:
@@ -74,11 +74,12 @@ def train(train_loader, model, criterion,  optimizer, epoch):
 
     begin_time = time.time()
 
+
     for step, data in enumerate(train_loader):
         data = tuple(t.cuda() for t in data)
         images, labels = data
 
-        paths = gen_paths(14, 12)
+        paths = gen_paths(num_layers,num_choices )
         optimizer.zero_grad()
         loss_list = []
         prec1_list = []
@@ -217,6 +218,8 @@ if __name__ == "__main__":
     train_config = config['train_hypernet_config']
     val_config = config['val_hypernet_config']
     visualization_config = config['visualization_config']
+    num_layers=10 if train_config['model'] == 'small' else 14
+    num_choices=12
 
     init_log(args.log_path)
     main()
