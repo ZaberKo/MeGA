@@ -130,9 +130,7 @@ def get_permutation(num_layers, num_choices):
 
     return paths
 
-
-def gen_paths(num_layers, num_choices):
-    paths = get_permutation(num_layers, num_choices)
+def path_idx2name(paths):
     new_paths = []
     for path in paths:
         new_path = []
@@ -141,6 +139,9 @@ def gen_paths(num_layers, num_choices):
         new_paths.append(new_path)
 
     return new_paths
+def gen_paths(num_layers, num_choices):
+    paths = get_permutation(num_layers, num_choices)
+    return path_idx2name(paths)
 
 
 def distributed_gen_paths(num_layers, num_choices, rank):
@@ -153,15 +154,7 @@ def distributed_gen_paths(num_layers, num_choices, rank):
 
     dist.broadcast(paths, 0)
     paths = paths.tolist()
-
-    new_paths = []
-    for path in paths:
-        new_path = []
-        for choice in path:
-            new_path.append(choice_idx2name(choice))
-        new_paths.append(new_path)
-
-    return new_paths
+    return path_idx2name(paths)
 
 
 def reduce_tensor(tensor, avg=True):
@@ -231,3 +224,11 @@ def save_checkpoint(state, filename='./checkpoint.pth'):
     if len(dir_path)>0 and not os.path.exists(dir_path):
         os.makedirs(dir_path)
     torch.save(state, filename)
+
+def load_checkpoint(path,rank=0):
+    assert os.path.isfile(path),"=> no checkpoint found at '{}'".format(path)
+    checkpoint = torch.load(path, map_location = lambda storage, loc: storage.cuda(rank))
+    return checkpoint
+    
+
+        

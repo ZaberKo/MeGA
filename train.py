@@ -68,7 +68,6 @@ def train(train_loader, model, criterion,  optimizer, epoch):
 
 
 def main():
-    seed = train_config['seed']
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -152,6 +151,7 @@ if __name__ == "__main__":
         config = yaml.load(f,Loader=yaml.SafeLoader)
     
     data_path=config['data_path']
+    seed=config['seed']
     train_config = config['train_hypernet_config']
     visualization_config=config['visualization_config']
     main()

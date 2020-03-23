@@ -17,7 +17,7 @@ import apex.parallel
 import torch.backends.cudnn as cudnn
 
 
-from modules.hypernet import Hypernet_Large,Hypernet_Small
+from modules.hypernet import Hypernet_Large, Hypernet_Small
 from modules.label_smooth import LabelSmoothingCELoss
 from utils import *
 from dataloader import *
@@ -26,6 +26,45 @@ from dataloader import *
 def print_local(*text, **args):
     if local_rank == 0:
         print(*text, **args)
+
+
+def evaluate(val_loader, model, criterion, training=False):
+    batch_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+
+    model.eval()
+
+    with torch.no_grad():
+        begin_time = time.time()
+        for step, data in enumerate(val_loader):
+            data = tuple(t.cuda() for t in data)
+            images, labels = data
+            paths = distributed_gen_paths(14, 12, local_rank)
+            loss_list = []
+            prec1_list = []
+            for path in paths:
+                output = model(images, path)
+                loss = criterion(output, labels)
+                prec1, = accuracy(output.detach(), labels, topk=(1,))
+
+                loss_list.append(reduce_tensor(loss.detach()).item())
+                prec1_list.append(reduce_tensor(prec1).item())
+
+            loss_list = np.array(loss_list)
+            prec1_list = np.array(prec1_list)
+
+            top1.update(prec1_list.mean(), images.shape[0])
+            losses.update(loss_list.mean(), images.shape[0])
+            batch_time.update(time.time()-begin_time)
+
+            if not training:
+                print_local('Val  : epoch:{:>4}: iter:{:>4} avg_batch_time: {:.3f} s loss:{:.4f} loss_dev:{:.4f} loss_avg:{:.4f} acc:{:.3f} acc_dev:{:.4f} acc_avg={:.3f}'.format(
+                    0, step, batch_time.avg, losses.val, loss_list.std(), losses.avg, top1.val, prec1_list.std(), top1.avg))
+
+            begin_time = time.time()
+
+    return top1
 
 
 def train(train_loader, model, criterion,  optimizer, epoch):
@@ -73,9 +112,10 @@ def train(train_loader, model, criterion,  optimizer, epoch):
 
         begin_time = time.time()
 
+    return top1
+
 
 def main():
-    seed = train_config['seed']
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -86,16 +126,16 @@ def main():
     n_gpu = torch.cuda.device_count()
     device = torch.device('cuda', local_rank)
     torch.cuda.set_device(device)
+    torch.cuda.manual_seed(seed)
 
     dist.init_process_group(backend="nccl")
-    assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
+    # assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
 
     train_batch_size = train_config['train_batch_size']//n_gpu
     val_batch_size = train_config['val_batch_size']//n_gpu
     train_loader, val_loader = load_cifar100(
         data_path, train_batch_size, val_batch_size, num_workers=2, is_distributed=True)
 
- 
     model = Hypernet_Large(num_classes=100)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
@@ -127,20 +167,28 @@ def main():
 
     # criterion = torch.nn.CrossEntropyLoss().cuda()
     criterion = LabelSmoothingCELoss().cuda()
+
+    if args.do_eval:
+        checkpoint=load_checkpoint(val_config['checkpoint_filepath'],rank=local_rank)
+        model.load_state_dict(checkpoint['state_dict'])
+        begin_time = time.time()
+        prec1_val=evaluate(val_loader, model, criterion)
+        print_local('val acc :{:.4f} time: {:.3f} s'.format(prec1_val.avg,time.time()-begin_time))
+        return
+
+
     for epoch in range(train_config['epoch']):
         print_local('epoch {} start'.format(epoch))
         print_local('current lr: {}'.format(schedule_lr.get_lr()[0]))
 
         begin_time = time.time()
 
-        # if epoch >= train_config['start_dropout_schedule_epoch']:
-        #     update_dropout_schedule(model)
-
-        train(train_loader, model, criterion,  optimizer, epoch)
+        prec1_train = train(train_loader, model, criterion,  optimizer, epoch)
+        prec1_val = evaluate(val_loader, model, criterion,training=True)
         schedule_lr.step()
-
-        print_local('epoch {} time: {:.3f} s'.format(
-            epoch, time.time()-begin_time))
+        print_local('train acc: {:.4f}'.format(prec1_train.avg))
+        print_local('val acc: {:.4f}'.format(prec1_val.avg))
+        print_local('epoch {} time: {:.3f} s'.format(epoch, time.time()-begin_time))
         print_local('\n\n')
 
         if local_rank == 0 and (epoch+1) % train_config['save_freq'] == 0:
@@ -167,9 +215,11 @@ if __name__ == "__main__":
     config_path = args.config_path
 
     with open(config_path, mode='r', encoding='utf-8') as f:
-        config = yaml.load(f,Loader=yaml.SafeLoader)
-    
-    data_path=config['data_path']
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+
+    data_path = config['data_path']
+    seed=config['seed']
     train_config = config['train_hypernet_config']
-    visualization_config=config['visualization_config']
+    val_config=config['val_hypernet_config']
+    visualization_config = config['visualization_config']
     main()
