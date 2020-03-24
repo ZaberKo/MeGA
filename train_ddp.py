@@ -31,10 +31,12 @@ def print_local(*text, **args):
         print(*text, **args)
 
 
-def evaluate(val_loader, model, criterion, training=False):
+def evaluate(val_loader, model, criterion, paths=None,training=False):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
+    if paths is None:
+        paths = distributed_gen_paths(num_layers,num_choices ,local_rank)
 
     model.eval()
 
@@ -43,7 +45,6 @@ def evaluate(val_loader, model, criterion, training=False):
         for step, data in enumerate(val_loader):
             data = tuple(t.cuda() for t in data)
             images, labels = data
-            paths = distributed_gen_paths(num_layers,num_choices ,local_rank)
             loss_list = []
             prec1_list = []
             for path in paths:
@@ -154,9 +155,9 @@ def main():
     optimizer = torch.optim.SGD(
         model.parameters(),
         lr=train_config['lr'],
-        momentum=0.9,
+        # momentum=0.9,
         weight_decay=4e-5,
-        nesterov=True
+        # nesterov=True
     )
 
     # model, optimizer = amp.initialize(model, optimizer,

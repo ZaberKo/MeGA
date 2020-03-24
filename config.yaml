@@ -7,12 +7,12 @@ visualization_config:
 train_hypernet_config:
     model: "small"
     loss: "CE" # "LSCE"|"CE"
-    lr: 0.00375
+    lr: 0.0150
     train_batch_size: 1024
     val_batch_size: 2048
     epoch: 300
     save_freq: 10 # unit: epoch
-    checkpoint_path: "./checkpoint"
+    checkpoint_path: "./checkpoint/hypernet_small_no_mom"
 
 
 val_hypernet_config:

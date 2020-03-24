@@ -15,7 +15,6 @@ if __name__ == "__main__":
     with open(args.log_path,'r',encoding='utf-8') as f:
         for line in f:
             if 'Train:' in line:
-                # print(float(line.split(':')[6].split(' ')[0]))
                 train_loss.append(float(line.split(':')[6].split(' ')[0]))
                 train_acc.append(float(line.split(':')[9].split(' ')[0]))
 
@@ -39,12 +38,16 @@ if __name__ == "__main__":
     # ax.set_ylim(0,100)
     
     ax1=fig.add_subplot(2,1,1)
-    ax1.plot(x,train_loss,label='train loss')
-    ax1.set_title('train loss')
+    ax1.plot(x,train_loss)
+    ax1.set_title('train loss',fontsize=16)
+    ax1.set_xlabel('iterations',fontsize=16)
+    ax1.set_ylabel('loss',fontsize=16)
 
     ax2=fig.add_subplot(2,1,2)
-    ax2.plot(x,train_acc,label='train acc')
+    ax2.plot(x,train_acc)
     ax2.set_title('train acc')
     ax2.set_ylim(0,100)
+    ax2.set_xlabel('iterations',fontsize=16)
+    ax2.set_ylabel('accuracy',fontsize=16)
     
     plt.savefig(os.path.join(directory,'{}.png'.format(filename)))
