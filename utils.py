@@ -19,44 +19,57 @@ def calc_padding(size, kernel_size, stride):
     return calc_padding_ori(size, size, kernel_size, stride)
 
 
-def choice_idx2name(idx):
-    if idx == 0:
+def choice_idx2name(choice_idx):
+    if choice_idx == 0:
         choice = '3x3_e3'
-    elif idx == 1:
+    elif choice_idx == 1:
         choice = '3x3_e3_se'
-    elif idx == 2:
+    elif choice_idx == 2:
         choice = '5x5_e3'
-    elif idx == 3:
+    elif choice_idx == 3:
         choice = '5x5_e3_se'
-    elif idx == 4:
+    elif choice_idx == 4:
         choice = '7x7_e3'
-    elif idx == 5:
+    elif choice_idx == 5:
         choice = '7x7_e3_se'
-    elif idx == 6:
+    elif choice_idx == 6:
         choice = '3x3_e6'
-    elif idx == 7:
+    elif choice_idx == 7:
         choice = '3x3_e6_se'
-    elif idx == 8:
+    elif choice_idx == 8:
         choice = '5x5_e6'
-    elif idx == 9:
+    elif choice_idx == 9:
         choice = '5x5_e6_se'
-    elif idx == 10:
+    elif choice_idx == 10:
         choice = '7x7_e6'
-    elif idx == 11:
+    elif choice_idx == 11:
         choice = '7x7_e6_se'
+    elif choice_idx==12:
+        choice='skip'
+    else:
+        raise ValueError('incorrect choice idx, must between 0 and 12')
     return choice
 
+def _make_divisible(v, divisor=8, min_value=None):
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    # Make sure that round down does not go down by more than 10%.
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v
 
-def gene2config(gene=None):
-    # template based on mobilenetv3
+
+def gene2config(gene=None,multiplier=1):
+    # template based on mobilenetv3 Large
     template = [
         # in_size,out_size,expansion_rate,kernel_size,use_se,activation,stride,dropblock_size
-        [16, 16, 1, 3, 'none', 'relu', 1, 0],
+        [16, 16, 1, 3, 'none', 'relu', 1, 0], # fixed layer
         [16, 24, 4, 3, 'none', 'relu', 2, 0],  # 112x112->56x56
         [24, 24, 3, 3, 'none', 'relu', 1, 0],
-        [24, 40, 3, 5, 'se', 'hswish', 2, 0],  # 56x56->28x28
-        [40, 40, 3, 5, 'se', 'hswish', 1, 7],
-        [40, 40, 3, 5, 'se', 'hswish', 1, 7],
+        [24, 40, 3, 5, 'se', 'relu', 2, 0],  # 56x56->28x28
+        [40, 40, 3, 5, 'se', 'relu', 1, 0],
+        [40, 40, 3, 5, 'se', 'relu', 1, 0],
         [40, 80, 6, 3, 'none', 'hswish', 2, 0],  # 28x28->14x14
         [80, 80, 2.5, 3, 'none', 'hswish', 1, 5],
         [80, 80, 2.3, 3, 'none', 'hswish', 1, 5],
@@ -68,50 +81,57 @@ def gene2config(gene=None):
         [160, 160, 6, 5, 'se', 'hswish', 1, 0],  # final channel:960
     ]
 
+
     def update(layer, kernel_size, expansion_rate, use_se):
         template[layer][3] = kernel_size
         template[layer][2] = expansion_rate
         template[layer][5] = 'se' if use_se else 'none'
 
     if gene is not None:
-        for i, choice in enumerate(gene):
+        for i, choice_idx in enumerate(gene):
             layer = i+1
-            if idx == 0:
+            if multiplier!=1:
+                template[layer][0]=_make_divisible(template[layer][0]*multiplier)
+                template[layer][1]=_make_divisible(template[layer][1]*multiplier)
+            if choice_idx == 0:
                 # '3x3_e3'
                 update(layer, 3, 3, False)
-            elif idx == 1:
+            elif choice_idx == 1:
                 # '3x3_e3_se'
                 update(layer, 3, 3, True)
-            elif idx == 2:
+            elif choice_idx == 2:
                 # '5x5_e3'
                 update(layer, 5, 3, False)
-            elif idx == 3:
+            elif choice_idx == 3:
                 # '5x5_e3_se'
                 update(layer, 5, 3, True)
-            elif idx == 4:
+            elif choice_idx == 4:
                 # '7x7_e3'
                 update(layer, 7, 3, False)
-            elif idx == 5:
+            elif choice_idx == 5:
                 # '7x7_e3_se'
                 update(layer, 7, 3, True)
-            elif idx == 6:
+            elif choice_idx == 6:
                 # '3x3_e6'
                 update(layer, 3, 6, False)
-            elif idx == 7:
+            elif choice_idx == 7:
                 # '3x3_e6_se'
                 update(layer, 3, 6, True)
-            elif idx == 8:
+            elif choice_idx == 8:
                 # '5x5_e6'
                 update(layer, 5, 6, False)
-            elif idx == 9:
+            elif choice_idx == 9:
                 # '5x5_e6_se'
                 update(layer, 5, 6, True)
-            elif idx == 10:
+            elif choice_idx == 10:
                 # '7x7_e6'
                 update(layer, 7, 6, False)
-            elif idx == 11:
+            elif choice_idx == 11:
                 # '7x7_e6_se'
                 update(layer, 7, 6, True)
+            elif choice_idx==12:
+                # 'skip'
+                update(layer,0,0,False)
 
     return template
 
@@ -198,7 +218,7 @@ def accuracy(output, target, topk=(1,)):
     res = []
     for k in topk:
         correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
-        res.append(correct_k.mul_(100/batch_size))
+        res.append(correct_k.mul_(100.0/batch_size))
     return res
 
 

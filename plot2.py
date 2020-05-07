@@ -16,7 +16,7 @@ if __name__ == "__main__":
     with open(args.log_path,'r',encoding='utf-8') as f:
         for line in f:
             if 'val acc:' in line:
-                val_acc.append(float(line.split(':')[1]))
+                val_acc.append(float(line.split(':')[2].split(' ')[1]))
             elif 'train acc' in line:
                 train_acc.append(float(line.split(':')[1]))
 
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     train_acc=np.array(train_acc)
     val_acc=np.array(val_acc)
 
-    print('epochs:{} max_val_loss:{} max_train_acc:{}'.format(len(train_acc),val_acc.max(),train_acc.max()))
+    print(f'epochs:{len(train_acc)} max_val_acc:{val_acc.max()}[epoch {val_acc.argmax()}] max_train_acc:{train_acc.max()}[epoch {train_acc.argmax()}]')
     
     x=np.linspace(0,len(train_acc)-1,len(train_acc))
 

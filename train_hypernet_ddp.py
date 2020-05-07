@@ -16,24 +16,29 @@ import apex.parallel
 
 import torch.backends.cudnn as cudnn
 
-from modules.mega import MeGA
+from modules.hypernet import Hypernet
 from modules.label_smooth import LabelSmoothingCELoss
-from modules.dropout_modules import init_dropout_schedule, update_dropout_schedule
+from modules.NoBiasDecay import noBiasDecay_hypernet
 from modules.cosine_annearing_with_warmup import CosineLR
 from utils import *
 from dataloader import *
-from modules.NoBiasDecay import noBiasDecay
+
+
 
 from mplog import MPLog
+
 
 logger = None
 
 
-def evaluate(val_loader, model, criterion, training=False):
+def evaluate(val_loader, model, criterion, paths=None, training=False):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
+
+    if paths is None:
+        paths = distributed_gen_paths(num_layers, num_choices, local_rank)
 
     model.eval()
 
@@ -44,23 +49,28 @@ def evaluate(val_loader, model, criterion, training=False):
             images, labels = data
             loss_list = []
             prec1_list = []
+            prec5_list = []
+            for path in paths:
+                output = model(images, path)
+                loss = criterion(output, labels)
+                prec1, prec5 = accuracy(output.detach(), labels, topk=(1, 5))
 
-            output = model(images)
-            loss = criterion(output, labels)
-            prec1, prec5 = accuracy(output.detach(), labels, topk=(1, 5))
+                loss_list.append(reduce_tensor(loss.detach()).item())
+                prec1_list.append(reduce_tensor(prec1).item())
+                prec5_list.append(reduce_tensor(prec5).item())
 
-            reduced_loss = reduce_tensor(loss.detach()).item()
-            reduced_prec1 = reduce_tensor(prec1).item()
-            reduced_prec5 = reduce_tensor(prec5).item()
+            loss_list = np.array(loss_list)
+            prec1_list = np.array(prec1_list)
+            prec5_list = np.array(prec5_list)
 
-            top1.update(reduced_prec1, images.shape[0])
-            top5.update(reduced_prec5, images.shape[0])
-            losses.update(reduced_loss, images.shape[0])
+            top1.update(prec1_list.mean(), images.shape[0])
+            top5.update(prec5_list.mean(), images.shape[0])
+            losses.update(loss_list.mean(), images.shape[0])
             batch_time.update(time.time()-begin_time)
 
             if not training:
                 logger.log(
-                    f'Val  : epoch:{0:>4} iter:{step:>4} avg_batch_time:{batch_time.avg:.3f}s loss:{losses.val:.4f} loss_avg:{losses.avg:.4f} top1:{top1.val:.3f} top1_avg:{top1.avg:.3f} top5:{top5.val:.3f} top5_avg:{top5.avg:.3f}')
+                    f'Val  : iter:{step:>4} avg_batch_time:{batch_time.avg:.3f}s loss:{losses.val:.4f}[std={loss_list.std():.4f}] loss_avg:{losses.avg:.4f} acc:{top1.val:.3f}[std={prec1_list.std():.4f}] acc5:{top5.val:.3f}[std={prec1_list.std():.4f}] acc_avg:{top1.avg:.3f} acc5_avg:{top5.avg:.3f}')
 
             begin_time = time.time()
 
@@ -82,27 +92,34 @@ def train(train_loader, model, criterion,  optimizer, epoch):
         data = tuple(t.cuda() for t in data)
         images, labels = data
 
+        paths = distributed_gen_paths(num_layers, num_choices, local_rank)
+
         optimizer.zero_grad()
+        loss_list = []
+        prec1_list = []
+        for path in paths:
+            output = model(images, path)
+            loss = criterion(output, labels)
+            prec1, = accuracy(output.detach(), labels, topk=(1,))
 
+            loss_list.append(reduce_tensor(loss.detach()).item())
+            prec1_list.append(reduce_tensor(prec1).item())
 
-        output = model(images)
-        loss = criterion(output, labels)
-        prec1, = accuracy(output.detach(), labels, topk=(1,))
-        loss.backward()
+            # with amp.scale_loss(loss, optimizer) as scaled_loss:
+            #     scaled_loss.backward()
+            loss.backward()
+
         optimizer.step()
 
-        reduced_loss = reduce_tensor(loss.detach()).item()
-        reduced_prec1 = reduce_tensor(prec1).item()
-        
-        top1.update(reduced_prec1, images.shape[0])
-        losses.update(reduced_loss, images.shape[0])
+        loss_list = np.array(loss_list)
+        prec1_list = np.array(prec1_list)
+        top1.update(prec1_list.mean(), images.shape[0])
+        losses.update(loss_list.mean(), images.shape[0])
         batch_time.update(time.time()-begin_time)
 
         if step % visualization_config['display_freq'] == 0:
             logger.log(
-                f'Train: epoch:{epoch:>4}: iter:{step:>4} avg_batch_time:{batch_time.avg:.3f}s loss:{losses.val:.4f} loss_avg:{losses.avg:.4f} acc:{top1.val:.3f} acc_avg:{top1.avg:.3f}')
-
-        begin_time = time.time()
+                f'Train: epoch:{epoch:>4}: iter:{step:>4} avg_batch_time:{batch_time.avg:.3f}s loss:{losses.val:.4f}[std={loss_list.std():.4f}] loss_avg:{losses.avg:.4f} acc:{top1.val:.3f}[std={prec1_list.std():.4f}] acc_avg:{top1.avg:.3f}')
 
     return top1
 
@@ -128,21 +145,15 @@ def main():
     train_loader, val_loader = load_cifar100(
         data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,big_size=True)
 
-    model = MeGA(model_config, cifar_flag=False,dropfc_rate=train_config['dropfc_rate'],num_classes=100)
+    if train_config['model'] != 'small' and train_config['model'] != 'large':
+        raise ValueError('only support model "small" & "large"')
 
+    model = Hypernet(mode=train_config['model'], num_classes=100,dropfc_rate=train_config['dropfc_rate'])
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
 
-    # optimizer = torch.optim.SGD(
-    #     model.parameters(),
-    #     lr=train_config['lr'],
-    #     momentum=0.9,
-    #     weight_decay=1e-5,
-    #     nesterov=True
-    # )
-
-    optimizer=torch.optim.SGD(
-        noBiasDecay(model,lr=train_config['lr'],weight_decay=train_config['weight_decay']),
+    optimizer = torch.optim.SGD(
+        noBiasDecay_hypernet(model, lr=train_config['lr'],weight_decay=train_config['weight_decay'],num_choices=num_choices),
         momentum=0.9,
         nesterov=True
     )
@@ -158,32 +169,18 @@ def main():
                 find_unused_parameters=True,
                 check_reduction=False)
 
-    # init_dropout_schedule(
-    #     model,
-    #     train_config['start_dropblock_rate'],
-    #     train_config['end_dropblock_rate'],
-    #     train_config['epoch'] if train_config['dropblock_schedule_steps'] <= 0 else train_config['dropblock_schedule_steps']
-    # )
-
     # schedule_lr = torch.optim.lr_scheduler.CosineAnnealingLR(
     #     optimizer,
     #     train_config['epoch'],
-    #     eta_min=0
+    #     eta_min=1e-5
     # )
 
-    # schedule_lr=CosineAnnealingWarmUpRestarts(
-    #     optimizer,
-    #     train_config['epoch']//3,
-    #     eta_max=1e-5,
-    #     T_up=10,
-    #     gamma=1
-    # )
     schedule_lr=CosineLR(
         optimizer,
-        10,
-        eta_min=1e-6,
-        T_mult=2,
-        warmup_epochs=5,
+        100,
+        eta_min=1e-5,
+        T_mult=1,
+        warmup_epochs=10,
         decay_rate=1
     )
 
@@ -199,21 +196,21 @@ def main():
             val_config['checkpoint_filepath'], rank=local_rank)
         model.load_state_dict(checkpoint['state_dict'])
         begin_time = time.time()
-        prec1_val, prec5_val = evaluate(val_loader, model, criterion)
-        logger.log(
-            f'val acc :{prec1_val.avg:.4f} time: {time.time()-begin_time:.3f} s')
+        prec1_val = evaluate(val_loader, model, criterion)
+        logger.log('val acc :{:.4f} time: {:.3f} s'.format(
+            prec1_val.avg, time.time()-begin_time))
         return
 
     for epoch in range(train_config['epoch']):
-        logger.log(f'epoch {epoch} start')
-        logger.log(f'current lr: {schedule_lr.get_lr()[-1]}')
+        logger.log('epoch {} start'.format(epoch))
+        logger.log('current lr: {}'.format(schedule_lr.get_lr()[0]))
 
         begin_time = time.time()
 
         prec1_train = train(train_loader, model, criterion,  optimizer, epoch)
-        prec1_val, prec5_val = evaluate(val_loader, model, criterion, training=True)
+        prec1_val, prec5_val = evaluate(
+            val_loader, model, criterion, training=True)
         schedule_lr.step()
-        # update_dropout_schedule(model)
 
         logger.log(f'train acc: {prec1_train.avg:.4f}')
         logger.log(f'val acc: top1: {prec1_val.avg:.4f} top5: {prec5_val.avg}')
@@ -228,7 +225,7 @@ def main():
                     'optimizer': optimizer.state_dict(),
                 },
                 os.path.join(train_config['checkpoint_path'],
-                             f'hypernet_{epoch+1}.pth')
+                             'hypernet_{}.pth'.format(epoch+1))
             )
 
 
@@ -250,11 +247,11 @@ if __name__ == "__main__":
 
     data_path = config['data_path']
     seed = config['seed']
-    train_config = config['train_config']
-    val_config = config['val_config']
+    train_config = config['train_hypernet_config']
+    val_config = config['val_hypernet_config']
     visualization_config = config['visualization_config']
+    num_layers = 10 if train_config['model'] == 'small' else 14
+    num_choices = 13
 
-    logger=MPLog(args.log_path,local_rank)
-    # model_config = gene2config([3 for i in range(14)],cifar=True)
-    model_config = gene2config(multiplier=1)
+    logger = MPLog(args.log_path, local_rank)
     main()

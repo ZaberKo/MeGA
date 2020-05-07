@@ -1,3 +1,4 @@
+---
 data_path: "./dataset"
 seed: 42
 
@@ -7,20 +8,43 @@ visualization_config:
 train_hypernet_config:
     model: "small"
     loss: "CE" # "LSCE"|"CE"
-    lr: 0.0150
-    train_batch_size: 1024
-    val_batch_size: 2048
+    lr: 0.0350
+    train_batch_size: 512
     epoch: 300
-    save_freq: 10 # unit: epoch
-    checkpoint_path: "./checkpoint/hypernet_small_no_mom"
+    dropfc_rate: 0.5
+    weight_decay: 0.00006
+    num_workers: 4
+    save_freq: 20 # unit: epoch
+    checkpoint_path: "./checkpoint/hypernet_small"
 
 
 val_hypernet_config:
+    val_batch_size: 2048
     checkpoint_filepath: "./checkpoint/hypernet/hypernet_500.pth"
 
 
 search_config:
     val_batch_size: 2500
+    checkpoint_filepath: "./checkpoint/hypernet/hypernet_500.pth"
+
+
+
+train_config:
+    loss: "LSCE" # "LSCE"|"CE"
+    lr: 0.0350
+    train_batch_size: 256
+    epoch: 600
+    dropfc_rate: 0.5
+    # start_dropblock_rate: 0
+    # end_dropblock_rate: 0.15
+    # dropblock_schedule_steps: -1 # -1 means =epoch
+    weight_decay: 0.00006
+    num_workers: 4
+    save_freq: 100 # unit: epoch
+    checkpoint_path: "./checkpoint/moga_large_all3"
+
+val_config:
+    val_batch_size: 2048
     checkpoint_filepath: "./checkpoint/hypernet/hypernet_500.pth"
     
     

@@ -16,7 +16,7 @@ if __name__ == "__main__":
         for line in f:
             if 'Train:' in line:
                 train_loss.append(float(line.split(':')[6].split(' ')[0]))
-                train_acc.append(float(line.split(':')[9].split(' ')[0]))
+                train_acc.append(float(line.split(':')[8].split(' ')[0]))
 
     
     directory=os.path.dirname(args.log_path)

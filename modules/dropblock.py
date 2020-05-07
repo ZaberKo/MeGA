@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from .dropout_modules import LinearScheduler
 
 r'''
     see "https://github.com/miguelvr/dropblock", we modified it.
@@ -164,16 +163,5 @@ class DropBlock2D_Channel(nn.Module):
 
 
 
-class ScheduleDropBlock(nn.Module):
-    def __init__(self,block_size, per_channel=False):
-        super(ScheduleDropBlock,self).__init__(start_dropout_rate, stop_dropout_rate, steps)
-        if per_channel:
-            self.dropblock=DropBlock2D_Channel(start_dropout_rate,block_size)
-        else:
-            self.dropblock=DropBlock2D(start_dropout_rate,block_size)
-        self.schduler=LinearScheduler(self.dropblock,start_dropout_rate,stop_dropout_rate,steps)
 
-
-    def forward(self,x):
-        return self.schduler(x)
 
