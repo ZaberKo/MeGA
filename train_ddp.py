@@ -165,11 +165,11 @@ def main():
     #     train_config['epoch'] if train_config['dropblock_schedule_steps'] <= 0 else train_config['dropblock_schedule_steps']
     # )
 
-    # schedule_lr = torch.optim.lr_scheduler.CosineAnnealingLR(
-    #     optimizer,
-    #     train_config['epoch'],
-    #     eta_min=0
-    # )
+    schedule_lr = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        train_config['epoch'],
+        eta_min=1e-5
+    )
 
     # schedule_lr=CosineAnnealingWarmUpRestarts(
     #     optimizer,
@@ -178,14 +178,14 @@ def main():
     #     T_up=10,
     #     gamma=1
     # )
-    schedule_lr=CosineLR(
-        optimizer,
-        10,
-        eta_min=1e-6,
-        T_mult=2,
-        warmup_epochs=5,
-        decay_rate=1
-    )
+    # schedule_lr=CosineLR(
+    #     optimizer,
+    #     10,
+    #     eta_min=1e-6,
+    #     T_mult=2,
+    #     warmup_epochs=5,
+    #     decay_rate=1
+    # )
 
     if train_config['loss'] == 'LSCE':
         criterion = LabelSmoothingCELoss().cuda()

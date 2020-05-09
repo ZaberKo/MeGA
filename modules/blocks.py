@@ -100,7 +100,8 @@ class ChoiceLayer(nn.Module):
             7, in_size, hidden_size6, out_size, gen_nolinear(nolinear), None, stride)
         self.choices['7x7_e6_se'] = Block(
             7, in_size, hidden_size6, out_size, gen_nolinear(nolinear), SeModule(hidden_size6), stride)
-        self.choices['skip'] = SkipOP(in_size, out_size, stride, gen_nolinear(nolinear))
+        self.choices['skip'] = SkipOP(
+            in_size, out_size, stride, gen_nolinear(nolinear))
 
     def forward(self, x, choice):
         return self.choices[choice](x)
@@ -108,7 +109,7 @@ class ChoiceLayer(nn.Module):
 
 class SkipOP(nn.Module):
     def __init__(self, in_size, out_size, stride, nolinear):
-        super(SkipOP,self).__init__()
+        super(SkipOP, self).__init__()
         assert stride == 2 or stride == 1
 
         self.in_size = in_size
@@ -116,7 +117,8 @@ class SkipOP(nn.Module):
         self.stride = stride
         if self.stride == 2 or self.in_size != self.out_size:
             # use a good Block
-            self.conv = Block(5, in_size, in_size*6, out_size, nolinear,SeModule(in_size*6),stride)
+            self.conv = Block(5, in_size, in_size*6, out_size,
+                              nolinear, SeModule(in_size*6), stride)
 
     def forward(self, x):
         if self.stride == 2 or self.in_size != self.out_size:
@@ -133,24 +135,30 @@ class Block(nn.Module):
         self.stride = stride
         self.se = semodule
         # expansion PW
-        self.conv1 = nn.Conv2d(in_size, expand_size,
-                               kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn1 = nn.BatchNorm2d(expand_size)
-        self.nolinear1 = nolinear
+        self.expansion_pw = nn.Sequential(
+            nn.Conv2d(in_size, expand_size,
+                      kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(expand_size),
+            nolinear
+        )
+
         # DW
-        self.conv2 = nn.Conv2d(expand_size, expand_size, kernel_size=kernel_size,
-                               stride=stride, padding=kernel_size//2, groups=expand_size, bias=False)
-        self.bn2 = nn.BatchNorm2d(expand_size)
-        self.nolinear2 = nolinear
+        self.dw = nn.Sequential(
+            nn.Conv2d(expand_size, expand_size, kernel_size=kernel_size,
+                      stride=stride, padding=(kernel_size-1)//2, groups=expand_size, bias=False),
+            nn.BatchNorm2d(expand_size),
+            semodule if semodule is not None else nn.Identity(),
+            nolinear
+        )
+
         # projection PW
-        self.conv3 = nn.Conv2d(expand_size, out_size,
-                               kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn3 = nn.BatchNorm2d(out_size)
+        self.projection_pw = nn.Sequential(
+            nn.Conv2d(expand_size, out_size,
+                      kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_size)
+        )
 
-        self.shortcut = nn.Sequential()
-
-        # TODO: remove this part
-        self.shortcut = nn.Sequential()
+        self.shortcut = nn.Identity()
         if stride == 1 and in_size != out_size:
             # use 1x1conv to change the prev input channel size from in_size to out_size
             self.shortcut = nn.Sequential(
@@ -161,14 +169,12 @@ class Block(nn.Module):
         # self.use_res_connect=stride==1 and in_size==out_size
 
     def forward(self, x):
-        out = self.nolinear1(self.bn1(self.conv1(x)))
-        out = self.nolinear2(self.bn2(self.conv2(out)))
-        if self.se != None:
-            out = self.se(out)
-        out = self.bn3(self.conv3(out))
-        out = out + self.shortcut(x) if self.stride == 1 else out
-        # if self.use_res_connect:
-        #     out=out+x
+        out = self.expansion_pw(x)
+        out = self.dw(out)
+        out = self.projection_pw(out)
+
+        if self.stride == 1:
+            out = out + self.shortcut(x)
         return out
 
 
@@ -183,13 +189,13 @@ class Block_Enhanced(Block):
             self.dropblock = ScheduleDropBlock(
                 dropblock_size, per_channel=True)
 
-    def forward(self, x):
-        # TODO: test different position of dropblock
-        out = self.nolinear1(self.bn1(self.conv1(x)))
-        out = self.nolinear2(self.bn2(self.conv2(out)))
-        if self.se != None:
-            out = self.se(out)
-        out = self.bn3(self.conv3(out))
-        out = out + self.shortcut(x) if self.stride == 1 else out
+    # def forward(self, x):
+    #     # TODO: test different position of dropblock
+    #     out = self.nolinear1(self.bn1(self.conv1(x)))
+    #     out = self.nolinear2(self.bn2(self.conv2(out)))
+    #     if self.se != None:
+    #         out = self.se(out)
+    #     out = self.bn3(self.conv3(out))
+    #     out = out + self.shortcut(x) if self.stride == 1 else out
 
-        return out
+    #     return out

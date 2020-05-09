@@ -5,8 +5,9 @@ from .blocks import *
 
 
 class Hypernet(nn.Module):
-    def __init__(self, mode='large',dropfc_rate=0.5,num_classes=1000):
+    def __init__(self, mode='large',dropfc_rate=0.2,num_classes=1000):
         super(Hypernet, self).__init__()
+        assert mode.lower in ['small','large']
         largeModel_flag=mode.lower()=='large'
 
 
@@ -68,18 +69,18 @@ class Hypernet(nn.Module):
         ) 
 
         self.gap=nn.AdaptiveAvgPool2d(1)
-        self.conv3=nn.Sequential(
+
+        self.classifier==nn.Sequential(
             nn.Linear(c, n_linear),
             nn.BatchNorm1d(n_linear),
-            hswish(inplace=True)
-        )
-
-        self.output_layer = nn.Sequential(
+            hswish(inplace=True),
             nn.Dropout(dropfc_rate),
             nn.Linear(n_linear, num_classes)
         )
 
-        self.fixed_modules=[self.stem,self.bneck_layer1,self.conv2,self.conv3,self.output_layer]
+
+
+        self.fixed_modules=[self.stem,self.bneck_layer1,self.conv2,self.classifier]
         self.choice_modules=list(self.bneck)
 
 
@@ -110,8 +111,8 @@ class Hypernet(nn.Module):
         out = self.conv2(out)
         out =self.gap(out)
         out = out.view(out.size(0), -1)
-        out = self.conv3(out)
-        out = self.output_layer(out)
+        out = self.classifier(out)
+
         return out
 
 
