@@ -12,9 +12,9 @@ train_hypernet_config:
     dataset: "imagenet"
     loss: "LSCE" # "LSCE"|"CE"
     lr: 0.050
-    train_batch_size: 512
+    train_batch_size: 1024
     epoch: 32
-    dropfc_rate: 0.2
+    dropfc_rate: 0.5
     weight_decay: 0.00001
     num_workers: 4
     save_freq: 1 # unit: epoch

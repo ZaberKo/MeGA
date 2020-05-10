@@ -62,7 +62,7 @@ def _make_divisible(v, divisor=8, min_value=None):
 
 def gene2config(gene=None,multiplier=1):
     # template based on mobilenetv3 Large
-    template = [
+    template_large = [
         # in_size,out_size,expansion_rate,kernel_size,use_se,activation,stride,dropblock_size
         [16, 16, 1, 3, 'none', 'relu', 1, 0], # fixed layer
         [16, 24, 4, 3, 'none', 'relu', 2, 0],  # 112x112->56x56
@@ -71,15 +71,40 @@ def gene2config(gene=None,multiplier=1):
         [40, 40, 3, 5, 'se', 'relu', 1, 0],
         [40, 40, 3, 5, 'se', 'relu', 1, 0],
         [40, 80, 6, 3, 'none', 'hswish', 2, 0],  # 28x28->14x14
-        [80, 80, 2.5, 3, 'none', 'hswish', 1, 5],
-        [80, 80, 2.3, 3, 'none', 'hswish', 1, 5],
-        [80, 80, 2.3, 3, 'none', 'hswish', 1, 5],
-        [80, 112, 6, 3, 'se', 'hswish', 1, 5],
-        [112, 112, 6, 3, 'se', 'hswish', 1, 5],
+        [80, 80, 2.5, 3, 'none', 'hswish', 1, 0],
+        [80, 80, 2.3, 3, 'none', 'hswish', 1, 0],
+        [80, 80, 2.3, 3, 'none', 'hswish', 1, 0],
+        [80, 112, 6, 3, 'se', 'hswish', 1, 0],
+        [112, 112, 6, 3, 'se', 'hswish', 1, 0],
         [112, 160, 6, 5, 'se', 'hswish', 2, 0],  # 14x14->7x7
-        [160, 160, 4.2, 5, 'se', 'hswish', 1, 0],
+        [160, 160, 6, 5, 'se', 'hswish', 1, 0],
         [160, 160, 6, 5, 'se', 'hswish', 1, 0],  # final channel:960
     ]
+
+    template_small = [
+        # in_size,out_size,expansion_rate,kernel_size,use_se,activation,stride,dropblock_size
+        [16, 16, 1, 3, 'se', 'relu', 2, 0], # fixed layer
+        [16, 24, 4.5, 3, 'none', 'relu', 2, 0],  # 56x56->24x24
+        [24, 24, 3.67, 3, 'none', 'relu', 1, 0],
+        [24, 40, 4, 5, 'se', 'relu', 2, 0],  # 56x56->28x28
+        [40, 40, 6, 5, 'se', 'relu', 1, 0],
+        [40, 40, 6, 5, 'se', 'relu', 1, 0],
+        [40, 48, 3, 5, 'se', 'hswish', 1, 0],  # 28x28->14x14
+        [48, 48, 3, 5, 'se', 'hswish', 1, 0],
+        [48, 96, 6, 5, 'se', 'hswish', 2, 0],
+        [96, 96, 6, 5, 'se', 'hswish', 1, 0],
+        [96, 96, 6, 5, 'se', 'hswish', 1, 0],
+    ]
+
+    if gene is None:
+        return template_large
+
+    assert len(gene) in [14,10], 'the length of gene mast be 14 or 10'
+    if len(gene)==14:
+        template=template_large
+    else:
+        template=template_small
+
 
 
     def update(layer, kernel_size, expansion_rate, use_se):
@@ -87,8 +112,8 @@ def gene2config(gene=None,multiplier=1):
         template[layer][2] = expansion_rate
         template[layer][5] = 'se' if use_se else 'none'
 
-    if gene is not None:
-        for i, choice_idx in enumerate(gene):
+
+    for i, choice_idx in enumerate(gene):
             layer = i+1
             if multiplier!=1:
                 template[layer][0]=_make_divisible(template[layer][0]*multiplier)

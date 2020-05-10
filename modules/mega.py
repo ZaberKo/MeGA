@@ -15,14 +15,13 @@ class MeGA(nn.Module):
             model_config) == 11, 'wrong model config'
         largeModel_flag = len(model_config) == 15
 
-        stem_stride = 2
         if cifar_flag:
             # change stride
             model_config[1][6] = 1
-            stem_stride = 1
+            
 
         self.stem = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, stride=stem_stride,
+            nn.Conv2d(3, 16, kernel_size=3, stride=2,
                       padding=1, bias=False),
             nn.BatchNorm2d(16),
             hswish(inplace=True)
@@ -77,7 +76,7 @@ class MeGA(nn.Module):
             # nn.BatchNorm1d(n_linear),
             hswish(inplace=True),
             nn.Dropout(dropfc_rate),
-            nn.Dropout(dropfc_rate)
+            nn.Linear(n_linear,num_classes)
         )
 
         self.init_params()

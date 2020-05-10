@@ -57,8 +57,8 @@ class SeModule(nn.Module):
         )
 
     def forward(self, x):
-        y = self.gap(x).view(x.size(0), -1)
-        w = self.se(y).view(x.size(0), -1, 1, 1)
+        w = self.gap(x).view(x.size(0), -1)
+        w = self.se(w).view(x.size(0), -1, 1, 1)
         return x * w
 
 

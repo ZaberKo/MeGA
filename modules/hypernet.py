@@ -19,7 +19,7 @@ class Hypernet(nn.Module):
 
         self.choic_block1=nn.ModuleList()
 
-        self.bneck_layer1=Block(3, 16, 16, 16, nn.ReLU(inplace=True), None, 1)
+        self.bneck_layer1=Block(3, 16, 16, 16, nn.ReLU(inplace=True), None, 1 if largeModel_flag else 2)
         
         if largeModel_flag:
             self.bneck = nn.ModuleList([
@@ -32,7 +32,7 @@ class Hypernet(nn.Module):
                 ChoiceLayer(80,80,'hswish',1),
                 ChoiceLayer(80,80,'hswish',1),
                 ChoiceLayer(80,80,'hswish',1),
-                ChoiceLayer(80,112,'hswish',2),
+                ChoiceLayer(80,112,'hswish',1),
                 ChoiceLayer(112,112,'hswish',1),
                 ChoiceLayer(112,160,'hswish',2),
                 ChoiceLayer(160,160,'hswish',1),
@@ -65,6 +65,7 @@ class Hypernet(nn.Module):
         self.conv2 = nn.Sequential(
             nn.Conv2d(c_in, c, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(c),
+            SeModule(c),
             hswish(inplace=True)
         ) 
 
