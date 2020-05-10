@@ -1,5 +1,6 @@
 ---
-data_path: "./dataset"
+# data_path: "./dataset" # for cifar100
+data_path: "/workspace/data/imagenet"
 seed: 42
 
 visualization_config:
@@ -7,14 +8,16 @@ visualization_config:
 
 train_hypernet_config:
     model: "small"
-    loss: "CE" # "LSCE"|"CE"
-    lr: 0.0350
+    # dataset: "cifar100"
+    dataset: "imagenet"
+    loss: "LSCE" # "LSCE"|"CE"
+    lr: 0.050
     train_batch_size: 512
-    epoch: 300
+    epoch: 32
     dropfc_rate: 0.2
-    weight_decay: 0.00006
+    weight_decay: 0.00001
     num_workers: 4
-    save_freq: 20 # unit: epoch
+    save_freq: 1 # unit: epoch
     checkpoint_path: "./checkpoint/hypernet_small"
 
 
@@ -32,7 +35,7 @@ search_config:
 train_config:
     loss: "LSCE" # "LSCE"|"CE"
     lr: 0.0350
-    train_batch_size: 256
+    train_batch_size: 512
     epoch: 100
     dropfc_rate: 0.2
     # start_dropblock_rate: 0

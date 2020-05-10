@@ -42,10 +42,12 @@ def evaluate(val_loader, model, criterion, paths=None, training=False):
 
     model.eval()
 
+    val_loader=data_prefetcher(val_loader)
+
     with torch.no_grad():
         begin_time = time.time()
         for step, data in enumerate(val_loader):
-            data = tuple(t.cuda() for t in data)
+            # data = tuple(t.cuda() for t in data)
             images, labels = data
             loss_list = []
             prec1_list = []
@@ -86,10 +88,11 @@ def train(train_loader, model, criterion,  optimizer, epoch):
     model.train()
 
     train_loader.sampler.set_epoch(epoch)
+    train_loader=data_prefetcher(train_loader)
 
     for step, data in enumerate(train_loader):
         begin_time = time.time()
-        data = tuple(t.cuda() for t in data)
+        # data = tuple(t.cuda() for t in data)
         images, labels = data
 
         paths = distributed_gen_paths(num_layers, num_choices, local_rank)
@@ -142,13 +145,20 @@ def main():
 
     train_batch_size = train_config['train_batch_size']//n_gpu
     val_batch_size = val_config['val_batch_size']//n_gpu
-    train_loader, val_loader = load_cifar100(
-        data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,big_size=True)
+
+    assert dataset_type in ['cifar100','imagenet'], 'currently dataset is only support CIFAR100 & ImageNet'
+    if dataset_type=='cifar100':
+        train_loader, val_loader = load_cifar100(
+            data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,big_size=True)
+        num_classes=100
+    else:
+        train_loader, val_loader=load_imagenet(data_path,train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,delay_toTensor=True)
+        num_classes=1000
 
     if train_config['model'] != 'small' and train_config['model'] != 'large':
         raise ValueError('only support model "small" & "large"')
 
-    model = Hypernet(mode=train_config['model'], num_classes=100,dropfc_rate=train_config['dropfc_rate'])
+    model = Hypernet(mode=train_config['model'], num_classes=num_classes,dropfc_rate=train_config['dropfc_rate'])
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
 
@@ -169,20 +179,20 @@ def main():
                 find_unused_parameters=True,
                 check_reduction=False)
 
-    # schedule_lr = torch.optim.lr_scheduler.CosineAnnealingLR(
-    #     optimizer,
-    #     train_config['epoch'],
-    #     eta_min=1e-5
-    # )
-
-    schedule_lr=CosineLR(
+    schedule_lr = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer,
-        100,
-        eta_min=1e-5,
-        T_mult=1,
-        warmup_epochs=10,
-        decay_rate=1
+        train_config['epoch'],
+        eta_min=1e-5
     )
+
+    # schedule_lr=CosineLR(
+    #     optimizer,
+    #     100,
+    #     eta_min=1e-5,
+    #     T_mult=1,
+    #     warmup_epochs=10,
+    #     decay_rate=1
+    # )
 
     if train_config['loss'] == 'LSCE':
         criterion = LabelSmoothingCELoss().cuda()
@@ -202,8 +212,8 @@ def main():
         return
 
     for epoch in range(train_config['epoch']):
-        logger.log('epoch {} start'.format(epoch))
-        logger.log('current lr: {}'.format(schedule_lr.get_lr()[0]))
+        logger.log(f'epoch {epoch} start')
+        logger.log(f'current lr: {schedule_lr.get_lr()[-1]}')
 
         begin_time = time.time()
 
@@ -233,7 +243,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', default='config.yaml',
                         type=str, help='config file path')
-    parser.add_argument('--log_path', default=None,
+    parser.add_argument('--log_path', default='debug.log',
                         type=str, help='log file path')
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument('--do_train', action='store_true')
@@ -250,8 +260,12 @@ if __name__ == "__main__":
     train_config = config['train_hypernet_config']
     val_config = config['val_hypernet_config']
     visualization_config = config['visualization_config']
+
     num_layers = 10 if train_config['model'] == 'small' else 14
     num_choices = 13
+
+    dataset_type=train_config['dataset'].lower()
+    
 
     logger = MPLog(args.log_path, local_rank)
     main()

@@ -7,7 +7,7 @@ from .blocks import *
 class Hypernet(nn.Module):
     def __init__(self, mode='large',dropfc_rate=0.2,num_classes=1000):
         super(Hypernet, self).__init__()
-        assert mode.lower in ['small','large']
+        assert mode.lower() in ['small','large']
         largeModel_flag=mode.lower()=='large'
 
 
@@ -70,7 +70,7 @@ class Hypernet(nn.Module):
 
         self.gap=nn.AdaptiveAvgPool2d(1)
 
-        self.classifier==nn.Sequential(
+        self.classifier=nn.Sequential(
             nn.Linear(c, n_linear),
             nn.BatchNorm1d(n_linear),
             hswish(inplace=True),

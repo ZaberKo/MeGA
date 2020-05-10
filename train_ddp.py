@@ -256,5 +256,5 @@ if __name__ == "__main__":
 
     logger=MPLog(args.log_path,local_rank)
     # model_config = gene2config([3 for i in range(14)],cifar=True)
-    model_config = gene2config(multiplier=1)
+    model_config = gene2config(gene=[11 for i in range(14)],multiplier=1)
     main()

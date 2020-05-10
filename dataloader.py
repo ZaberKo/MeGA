@@ -8,25 +8,28 @@ import numpy as np
 import os
 
 
-def load_cifar100(path: str, train_batch_size: int, val_batch_size: int, num_workers: int = 0,data_augment=False, big_size=False,is_distributed=True):
+def load_cifar100(path: str, train_batch_size: int, val_batch_size: int, num_workers: int = 0, data_augment=False, big_size=False, is_distributed=True):
     if data_augment:
         transform_train = transforms.Compose([
             transforms.Resize(224 if big_size else 32),
             transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.05),
-            transforms.RandomAffine(degrees=30, translate=(0.05,0.05), scale=(0.8,1.2), shear=30, fillcolor=0),
+            transforms.ColorJitter(
+                brightness=0.5, contrast=0.5, saturation=0.5, hue=0.05),
+            transforms.RandomAffine(degrees=30, translate=(
+                0.05, 0.05), scale=(0.8, 1.2), shear=30, fillcolor=0),
             transforms.ToTensor(),
             transforms.Normalize((0.5071, 0.4865, 0.4409),
-                                (0.2673, 0.2564, 0.2762)),
+                                 (0.2673, 0.2564, 0.2762)),
         ])
     else:
         transform_train = transforms.Compose([
             transforms.Resize(224 if big_size else 32),
-            transforms.RandomCrop(224 if big_size else 32, padding=224//32*4 if big_size else 4),
+            transforms.RandomCrop(224 if big_size else 32,
+                                  padding=224//32*4 if big_size else 4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.5071, 0.4865, 0.4409),
-                                (0.2673, 0.2564, 0.2762)),
+                                 (0.2673, 0.2564, 0.2762)),
         ])
 
     transform_val = transforms.Compose([
@@ -67,25 +70,38 @@ def load_cifar100(path: str, train_batch_size: int, val_batch_size: int, num_wor
     return train_loader, val_loader
 
 
-
-
-
-def load_ImageNet(path: str, train_batch_size: int, val_batch_size: int, num_workers: int = 0, is_distributed=True):
+def load_imagenet(path: str, train_batch_size: int, val_batch_size: int, num_workers: int = 0, is_distributed=True, delay_toTensor=False):
     crop_size = 224
     val_size = 256
     traindir = os.path.join(path, 'train')
     valdir = os.path.join(path, 'val')
 
+    print(traindir)
+    print(valdir)
+
     # Note: ToTensor & Normalize steps are put into data_prefetcher
-    transform_train = transforms.Compose([
+    transform_train = [
         transforms.RandomResizedCrop(crop_size),
         transforms.RandomHorizontalFlip()
-    ])
+    ]
 
-    transform_val = transforms.Compose([
+    transform_val = [
         transforms.Resize(val_size),
         transforms.CenterCrop(crop_size),
-    ])
+    ]
+
+    if not delay_toTensor:
+        transform_toTensor = [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.485, 0.456, 0.406),
+                                 std=(0.229, 0.224, 0.225)),
+        ]
+        transform_train += transform_toTensor
+        transform_val += transform_toTensor
+
+    transform_train = transforms.Compose(transform_train)
+    transform_val = transforms.Compose(transform_val)
+
     train_dataset = datasets.ImageFolder(
         root=traindir, transform=transform_train)
     val_dataset = datasets.ImageFolder(
@@ -104,7 +120,7 @@ def load_ImageNet(path: str, train_batch_size: int, val_batch_size: int, num_wor
         pin_memory=True,
         drop_last=True,
         sampler=train_sampler,
-        collate_fn=fast_collate
+        collate_fn=fast_collate if delay_toTensor else None
     )
 
     val_loader = DataLoader(
@@ -114,12 +130,16 @@ def load_ImageNet(path: str, train_batch_size: int, val_batch_size: int, num_wor
         num_workers=num_workers,
         pin_memory=True,
         sampler=val_sampler,
-        collate_fn=fast_collate
+        collate_fn=fast_collate if delay_toTensor else None
     )
 
     return train_loader, val_loader
 
+
 def fast_collate(batch):
+    '''
+        fast toTensor()
+    '''
     imgs = [img[0] for img in batch]
     targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
     w = imgs[0].size[0]
@@ -135,7 +155,11 @@ def fast_collate(batch):
 
     return tensor, targets
 
+
 class data_prefetcher():
+    '''
+        fast data=data.cuda()
+    '''
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
@@ -192,18 +216,14 @@ class data_prefetcher():
         return input, target
 
     def __next__(self):
-        data = self.next()
-        if data is None:
+        input, target = self.next()
+        if input is None or target is None:
             raise StopIteration
-        return data
+        return input, target
 
     def __iter__(self):
         return self
 
 
-# if __name__ == "__main__":
-#     train_loader, val_loader=load_cifar100('./dataset',100,10)
-#     loader=iter(train_loader)
-#     images,labels=next(loader)
-#     print(images.shape)
-#     print(labels.shape)
+
+        
