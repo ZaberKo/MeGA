@@ -9,21 +9,23 @@ r'''
 
 
 class MeGA(nn.Module):
-    def __init__(self, model_config,cifar_flag,dropfc_rate=0.5, num_classes=1000):
+    def __init__(self, model_config, cifar_flag, dropfc_rate=0.5, num_classes=1000):
         super(MeGA, self).__init__()
-        assert len(model_config)==15 or len(model_config)==11, 'wrong model config'
-        largeModel_flag=len(model_config)==15
-        
-        stem_stride=2
+        assert len(model_config) == 15 or len(
+            model_config) == 11, 'wrong model config'
+        largeModel_flag = len(model_config) == 15
+
+        stem_stride = 2
         if cifar_flag:
-            #change stride
-            model_config[1][6]=1
-            stem_stride=1
+            # change stride
+            model_config[1][6] = 1
+            stem_stride = 1
 
         self.stem = nn.Sequential(
-                nn.Conv2d(3, 16, kernel_size=3, stride=stem_stride, padding=1, bias=False),
-                nn.BatchNorm2d(16),
-                hswish(inplace=True)
+            nn.Conv2d(3, 16, kernel_size=3, stride=stem_stride,
+                      padding=1, bias=False),
+            nn.BatchNorm2d(16),
+            hswish(inplace=True)
         )
 
         self.choic_block1 = nn.ModuleList()
@@ -31,19 +33,20 @@ class MeGA(nn.Module):
         mb_list = list()
         for layer_config in model_config:
             in_size, out_size, expansion_rate, kernel_size, use_se, nolinear, stride, dropblock_size = layer_config
-            if kernel_size==0:
-                assert expansion_rate==0 and use_se==False
-                if stride==2 and in_size!=out_size:
-                    mb_list.append(SkipOP(in_size,out_size,stride))
+            if kernel_size == 0:
+                assert expansion_rate == 0 and use_se == False
+                if stride == 2 and in_size != out_size:
+                    mb_list.append(SkipOP(in_size, out_size, stride))
                 continue
 
             mb_list.append(
                 Block(
-                    kernel_size, 
-                    in_size, 
-                    round(in_size*expansion_rate), 
+                    kernel_size,
+                    in_size,
+                    round(in_size*expansion_rate),
                     out_size,
-                    nolinear=hswish(inplace=True) if nolinear == 'hswish' else nn.ReLU(inplace=True),
+                    nolinear=hswish(inplace=True) if nolinear == 'hswish' else nn.ReLU(
+                        inplace=True),
                     semodule=SeModule(round(in_size*expansion_rate)),
                     stride=stride,
                     # dropblock_size=dropblock_size
@@ -51,27 +54,32 @@ class MeGA(nn.Module):
             )
         self.bneck = nn.Sequential(*mb_list)
 
-        c_in=model_config[-1][1]
+        c_in = model_config[-1][1]
         if largeModel_flag:
-            c=960
-            n_linear=1280
+            c = 960
+            n_linear = 1280
         else:
-            c=576
-            n_linear=1024
+            c = 576
+            n_linear = 1024
 
-        self.conv2 = nn.Conv2d(c_in, c, kernel_size=1,
-                               stride=1, padding=0, bias=False)
-        self.bn2 = nn.BatchNorm2d(c)
-        self.hs2 = hswish(inplace=True)
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(c_in, c, kernel_size=1,
+                      stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(c),
+            hswish(inplace=True)
+        )
+
 
         self.gap = nn.AdaptiveAvgPool2d(1)
 
-        self.fc3 = nn.Linear(c, n_linear)
-        self.bn3 = nn.BatchNorm1d(n_linear)
-        self.hs3 = hswish(inplace=True)
+        self.classifier = nn.Sequential(
+            nn.Linear(c, n_linear),
+            # nn.BatchNorm1d(n_linear),
+            hswish(inplace=True),
+            nn.Dropout(dropfc_rate),
+            nn.Dropout(dropfc_rate)
+        )
 
-        self.dropout_fc4=nn.Dropout(dropfc_rate)
-        self.fc4 = nn.Linear(n_linear, num_classes)
         self.init_params()
 
     def init_params(self):
@@ -92,12 +100,10 @@ class MeGA(nn.Module):
         out = self.stem(x)
 
         out = self.bneck(out)
-        out = self.hs2(self.bn2(self.conv2(out)))
+        out = self.conv2(out)
         out = self.gap(out)
         out = out.view(out.size(0), -1)
 
         # SyncBatchNorm bugs, update to torch>=1.4.0 if use DDP
-        out = self.hs3(self.bn3(self.fc3(out)))
-        out = self.fc4(self.dropout_fc4(out))
+        out = self.classifier(out)
         return out
-

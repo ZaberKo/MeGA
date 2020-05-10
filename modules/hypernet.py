@@ -72,7 +72,7 @@ class Hypernet(nn.Module):
 
         self.classifier=nn.Sequential(
             nn.Linear(c, n_linear),
-            nn.BatchNorm1d(n_linear),
+            # nn.BatchNorm1d(n_linear),
             hswish(inplace=True),
             nn.Dropout(dropfc_rate),
             nn.Linear(n_linear, num_classes)
