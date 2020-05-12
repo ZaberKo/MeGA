@@ -7,18 +7,18 @@ visualization_config:
     display_freq: 1 # unit: iteration
 
 train_hypernet_config:
-    model: "small"
+    model: "large"
     # dataset: "cifar100"
     dataset: "imagenet"
     loss: "LSCE" # "LSCE"|"CE"
-    lr: 0.050
-    train_batch_size: 1024
+    lr: 0.035
+    train_batch_size: 512
     epoch: 32
     dropfc_rate: 0.5
     weight_decay: 0.00001
     num_workers: 4
     save_freq: 1 # unit: epoch
-    checkpoint_path: "./checkpoint/hypernet_small"
+    checkpoint_path: "./checkpoint/hypernet"
 
 
 val_hypernet_config:
@@ -44,10 +44,10 @@ train_config:
     weight_decay: 0.00006
     num_workers: 2
     save_freq: 100 # unit: epoch
-    checkpoint_path: "./checkpoint/moga_large_all3"
+    checkpoint_path: "./checkpoint/moga_large"
 
 val_config:
     val_batch_size: 2048
-    checkpoint_filepath: "./checkpoint/hypernet/hypernet_500.pth"
+    checkpoint_filepath: "./checkpoint/moga_large/hypernet_500.pth"
     
     

@@ -236,7 +236,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', default='config.yaml',
                         type=str, help='config file path')
-    parser.add_argument('--log_path', default=None,
+    parser.add_argument('--log_path', default='debug.log',
                         type=str, help='log file path')
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument('--do_train', action='store_true')

@@ -124,6 +124,7 @@ def main():
     train_loader, val_loader = load_cifar100(
         data_path, train_batch_size, val_batch_size, num_workers=2)
 
+    train_config['model']=train_config['model'].lower()
     if train_config['model'] == 'small':
         model = Hypernet_Small(num_classes=100)
     elif train_config['model'] == 'large':

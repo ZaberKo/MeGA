@@ -9,19 +9,21 @@ r'''
 
 
 class MeGA(nn.Module):
-    def __init__(self, model_config, cifar_flag, dropfc_rate=0.5, num_classes=1000):
+    def __init__(self, model_config, cifar_flag=False, dropfc_rate=0.5, num_classes=1000):
         super(MeGA, self).__init__()
-        assert len(model_config) == 15 or len(
-            model_config) == 11, 'wrong model config'
+        assert len(model_config) in [11,15], 'wrong model config'
+
         largeModel_flag = len(model_config) == 15
 
+        stem_stirde=2
         if cifar_flag:
             # change stride
             model_config[1][6] = 1
+            stem_stirde=1
             
 
         self.stem = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, stride=2,
+            nn.Conv2d(3, 16, kernel_size=3, stride=stem_stirde,
                       padding=1, bias=False),
             nn.BatchNorm2d(16),
             hswish(inplace=True)
@@ -37,18 +39,18 @@ class MeGA(nn.Module):
                 if stride == 2 and in_size != out_size:
                     mb_list.append(SkipOP(in_size, out_size, stride))
                 continue
-
+            
+            exp_size=round(in_size*expansion_rate)
             mb_list.append(
                 Block(
                     kernel_size,
                     in_size,
-                    round(in_size*expansion_rate),
+                    exp_size,
                     out_size,
                     nolinear=hswish(inplace=True) if nolinear == 'hswish' else nn.ReLU(
                         inplace=True),
-                    semodule=SeModule(round(in_size*expansion_rate)),
-                    stride=stride,
-                    # dropblock_size=dropblock_size
+                    semodule=SeModule(exp_size) if use_se else None,
+                    stride=stride
                 )
             )
         self.bneck = nn.Sequential(*mb_list)
@@ -65,6 +67,7 @@ class MeGA(nn.Module):
             nn.Conv2d(c_in, c, kernel_size=1,
                       stride=1, padding=0, bias=False),
             nn.BatchNorm2d(c),
+            SeModule(c),
             hswish(inplace=True)
         )
 
@@ -73,7 +76,7 @@ class MeGA(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Linear(c, n_linear),
-            # nn.BatchNorm1d(n_linear),
+            nn.BatchNorm1d(n_linear),
             hswish(inplace=True),
             nn.Dropout(dropfc_rate),
             nn.Linear(n_linear,num_classes)
@@ -103,6 +106,5 @@ class MeGA(nn.Module):
         out = self.gap(out)
         out = out.view(out.size(0), -1)
 
-        # SyncBatchNorm bugs, update to torch>=1.4.0 if use DDP
         out = self.classifier(out)
         return out
