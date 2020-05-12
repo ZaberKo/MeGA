@@ -33,9 +33,10 @@ class MeGA(nn.Module):
 
         mb_list = list()
         for layer_config in model_config:
-            in_size, out_size, expansion_rate, kernel_size, use_se, nolinear, stride, dropblock_size = layer_config
+            in_size, out_size, expansion_rate, kernel_size, se, nolinear, stride, dropblock_size = layer_config
+
             if kernel_size == 0:
-                assert expansion_rate == 0 and use_se == False
+                assert expansion_rate == 0 and se == 'none'
                 if stride == 2 and in_size != out_size:
                     mb_list.append(SkipOP(in_size, out_size, stride))
                 continue
@@ -49,7 +50,7 @@ class MeGA(nn.Module):
                     out_size,
                     nolinear=hswish(inplace=True) if nolinear == 'hswish' else nn.ReLU(
                         inplace=True),
-                    semodule=SeModule(exp_size) if use_se else None,
+                    semodule=SeModule(exp_size) if se=='se' else None,
                     stride=stride
                 )
             )
