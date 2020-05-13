@@ -8,7 +8,7 @@ class Individual(object):
         self.fitness=fitness
 
     def __eq__(self,other:Individual):
-        for g1,g2 in zip(gene,other.gene):
+        for g1,g2 in zip(self.gene,other.gene):
             if g1!=g2:
                 return False
         return True
@@ -96,6 +96,7 @@ class MGA(object):
             child_gene=self.mutate(child_gene)
             # Step 4. Evaluate the child u
             fitness=self.get_fitness(child_gene)
+            child=Individual(child_gene,fitness)
             # Step 5. Selection: replace the losser parent
             self.pop[p_losser_i]=Individual(child_gene,fitness)
             # Step 6. Update the best-so-far solution

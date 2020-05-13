@@ -19,7 +19,7 @@ import torch.backends.cudnn as cudnn
 from modules.mega import MeGA
 from modules.label_smooth import LabelSmoothingCELoss
 from modules.dropout_modules import init_dropout_schedule, update_dropout_schedule
-from modules.cosine_annearing_with_warmup import CosineLR
+from modules.cosine_annearing_with_warmup import *
 from utils import *
 from dataloader import *
 from modules.NoBiasDecay import noBiasDecay
@@ -67,7 +67,7 @@ def evaluate(val_loader, model, criterion, training=False):
     return top1, top5
 
 
-def train(train_loader, model, criterion,  optimizer, epoch):
+def train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -90,6 +90,7 @@ def train(train_loader, model, criterion,  optimizer, epoch):
         prec1, = accuracy(output.detach(), labels, topk=(1,))
         loss.backward()
         optimizer.step()
+        lr_scheduler.step()
 
         reduced_loss = reduce_tensor(loss.detach()).item()
         reduced_prec1 = reduce_tensor(prec1).item()
@@ -125,10 +126,20 @@ def main():
 
     train_batch_size = train_config['train_batch_size']//n_gpu
     val_batch_size = val_config['val_batch_size']//n_gpu
-    train_loader, val_loader = load_cifar100(
-        data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,big_size=True)
 
-    model = MeGA(model_config, cifar_flag=False,dropfc_rate=train_config['dropfc_rate'],num_classes=100)
+    dataset_type=train_config['dataset'].lower()
+    assert dataset_type in ['cifar100','imagenet'], 'currently dataset is only support CIFAR100 & ImageNet'
+    if dataset_type=='cifar100':
+        train_loader, val_loader = load_cifar100(
+            data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,big_size=True)
+        num_classes=100
+        train_dataset_len=50000 
+    else:
+        train_loader, val_loader=load_imagenet(data_path,train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,delay_toTensor=True)
+        num_classes=1000
+        train_dataset_len=1281167
+
+    model = MeGA(model_config, cifar_flag=False,dropfc_rate=train_config['dropfc_rate'],num_classes=num_classes)
 
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
@@ -165,27 +176,30 @@ def main():
     #     train_config['epoch'] if train_config['dropblock_schedule_steps'] <= 0 else train_config['dropblock_schedule_steps']
     # )
 
-    schedule_lr = torch.optim.lr_scheduler.CosineAnnealingLR(
+    # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    #     optimizer,
+    #     train_config['epoch'],
+    #     eta_min=1e-5
+    # )
+
+
+
+    lr_scheduler=CosineWarmupLR(
         optimizer,
-        train_config['epoch'],
-        eta_min=1e-5
+        epochs=train_config['epoch'],
+        iter_in_one_epoch=train_dataset_len//train_config['train_batch_size'],
+        lr_min=1e-5,
+        warmup_epochs=2
     )
 
-    # schedule_lr=CosineAnnealingWarmUpRestarts(
+    # lr_scheduler=CosineAnnealingWarmUpRestarts(
     #     optimizer,
     #     train_config['epoch']//3,
     #     eta_max=1e-5,
     #     T_up=10,
     #     gamma=1
     # )
-    # schedule_lr=CosineLR(
-    #     optimizer,
-    #     10,
-    #     eta_min=1e-6,
-    #     T_mult=2,
-    #     warmup_epochs=5,
-    #     decay_rate=1
-    # )
+
 
     if train_config['loss'] == 'LSCE':
         criterion = LabelSmoothingCELoss().cuda()
@@ -206,13 +220,13 @@ def main():
 
     for epoch in range(train_config['epoch']):
         logger.log(f'epoch {epoch} start')
-        logger.log(f'current lr: {schedule_lr.get_lr()[-1]}')
+        logger.log(f'current lr: {lr_scheduler.get_lr()[-1]}')
 
         begin_time = time.time()
 
-        prec1_train = train(train_loader, model, criterion,  optimizer, epoch)
+        prec1_train = train(train_loader, model, criterion,  optimizer,lr_scheduler, epoch)
         prec1_val, prec5_val = evaluate(val_loader, model, criterion, training=True)
-        schedule_lr.step()
+        # lr_scheduler.step()
         # update_dropout_schedule(model)
 
         logger.log(f'train acc: {prec1_train.avg:.4f}')

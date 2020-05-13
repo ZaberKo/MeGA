@@ -127,3 +127,4 @@ dmypy.json
 test*.py
 *.pickle
 *.log
+/debug/

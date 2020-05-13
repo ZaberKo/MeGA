@@ -33,11 +33,12 @@ search_config:
 
 
 train_config:
+    dataset: "cifar100"
     loss: "LSCE" # "LSCE"|"CE"
     lr: 0.0350
-    train_batch_size: 512
+    train_batch_size: 256
     epoch: 100
-    dropfc_rate: 0.2
+    dropfc_rate: 0.5
     # start_dropblock_rate: 0
     # end_dropblock_rate: 0.15
     # dropblock_schedule_steps: -1 # -1 means =epoch

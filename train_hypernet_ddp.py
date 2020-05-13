@@ -19,7 +19,7 @@ import torch.backends.cudnn as cudnn
 from modules.hypernet import Hypernet
 from modules.label_smooth import LabelSmoothingCELoss
 from modules.NoBiasDecay import noBiasDecay_hypernet
-from modules.cosine_annearing_with_warmup import CosineLR
+from modules.cosine_annearing_with_warmup import *
 from utils import *
 from dataloader import *
 
@@ -79,7 +79,7 @@ def evaluate(val_loader, model, criterion, paths=None, training=False):
     return top1, top5
 
 
-def train(train_loader, model, criterion,  optimizer, epoch):
+def train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -113,6 +113,7 @@ def train(train_loader, model, criterion,  optimizer, epoch):
             loss.backward()
 
         optimizer.step()
+        lr_scheduler.step()
 
         loss_list = np.array(loss_list)
         prec1_list = np.array(prec1_list)
@@ -146,17 +147,20 @@ def main():
     train_batch_size = train_config['train_batch_size']//n_gpu
     val_batch_size = val_config['val_batch_size']//n_gpu
 
+    dataset_type=train_config['dataset'].lower()
     assert dataset_type in ['cifar100','imagenet'], 'currently dataset is only support CIFAR100 & ImageNet'
     if dataset_type=='cifar100':
         train_loader, val_loader = load_cifar100(
             data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,big_size=True)
         num_classes=100
+        train_dataset_len=50000
     else:
         train_loader, val_loader=load_imagenet(data_path,train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,delay_toTensor=True)
         num_classes=1000
+        train_dataset_len=1281167
 
-    if train_config['model'] != 'small' and train_config['model'] != 'large':
-        raise ValueError('only support model "small" & "large"')
+    assert train_config['model'] in ['small' ,'large'], 'only support model "small" & "large"'
+
 
     model = Hypernet(mode=train_config['model'], num_classes=num_classes,dropfc_rate=train_config['dropfc_rate'])
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -179,13 +183,15 @@ def main():
                 find_unused_parameters=True,
                 check_reduction=False)
 
-    schedule_lr = torch.optim.lr_scheduler.CosineAnnealingLR(
+    lr_scheduler=CosineWarmupLR(
         optimizer,
-        train_config['epoch'],
-        eta_min=1e-5
+        epochs=train_config['epoch'],
+        iter_in_one_epoch=train_dataset_len//train_config['train_batch_size'],
+        lr_min=1e-5,
+        warmup_epochs=2
     )
 
-    # schedule_lr=CosineLR(
+    # lr_scheduler=CosineLR(
     #     optimizer,
     #     100,
     #     eta_min=1e-5,
@@ -213,14 +219,14 @@ def main():
 
     for epoch in range(train_config['epoch']):
         logger.log(f'epoch {epoch} start')
-        logger.log(f'current lr: {schedule_lr.get_lr()[-1]}')
+        logger.log(f'current lr: {lr_scheduler.get_lr()[-1]}')
 
         begin_time = time.time()
 
-        prec1_train = train(train_loader, model, criterion,  optimizer, epoch)
+        prec1_train = train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch)
         prec1_val, prec5_val = evaluate(
             val_loader, model, criterion, training=True)
-        schedule_lr.step()
+        # lr_scheduler.step()
 
         logger.log(f'train acc: {prec1_train.avg:.4f}')
         logger.log(f'val acc: top1: {prec1_val.avg:.4f} top5: {prec5_val.avg}')
@@ -264,8 +270,6 @@ if __name__ == "__main__":
     num_layers = 10 if train_config['model'] == 'small' else 14
     num_choices = 13
 
-    dataset_type=train_config['dataset'].lower()
-    
 
     logger = MPLog(args.log_path, local_rank)
     main()
