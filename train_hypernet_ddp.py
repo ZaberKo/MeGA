@@ -24,14 +24,13 @@ from utils import *
 from dataloader import *
 
 
-
 from mplog import MPLog
 
 
 logger = None
 
 
-def evaluate(val_loader, model, criterion, paths=None, training=False):
+def evaluate(val_loader, model, criterion, paths=None, training=False, prefetch_fn=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -42,12 +41,14 @@ def evaluate(val_loader, model, criterion, paths=None, training=False):
 
     model.eval()
 
-    val_loader=data_prefetcher(val_loader)
+    if prefetch_fn is not None:
+        val_loader = prefetch_fn(val_loader)
 
     with torch.no_grad():
         begin_time = time.time()
         for step, data in enumerate(val_loader):
-            # data = tuple(t.cuda() for t in data)
+            if prefetch_fn is None:
+                data = tuple(t.cuda() for t in data)
             images, labels = data
             loss_list = []
             prec1_list = []
@@ -79,7 +80,7 @@ def evaluate(val_loader, model, criterion, paths=None, training=False):
     return top1, top5
 
 
-def train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch):
+def train(train_loader, model, criterion,  optimizer, lr_scheduler, epoch, prefetch_fn=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -88,11 +89,13 @@ def train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch):
     model.train()
 
     train_loader.sampler.set_epoch(epoch)
-    train_loader=data_prefetcher(train_loader)
+    if prefetch_fn is not None:
+        train_loader = prefetch_fn(train_loader)
 
     for step, data in enumerate(train_loader):
         begin_time = time.time()
-        # data = tuple(t.cuda() for t in data)
+        if prefetch_fn is None:
+            data = tuple(t.cuda() for t in data)
         images, labels = data
 
         paths = distributed_gen_paths(num_layers, num_choices, local_rank)
@@ -147,27 +150,33 @@ def main():
     train_batch_size = train_config['train_batch_size']//n_gpu
     val_batch_size = val_config['val_batch_size']//n_gpu
 
-    dataset_type=train_config['dataset'].lower()
-    assert dataset_type in ['cifar100','imagenet'], 'currently dataset is only support CIFAR100 & ImageNet'
-    if dataset_type=='cifar100':
+    dataset_type = train_config['dataset'].lower()
+    assert dataset_type in ['cifar100',
+                            'imagenet'], 'only support CIFAR100 & ImageNet'
+    if dataset_type == 'cifar100':
         train_loader, val_loader = load_cifar100(
-            data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,big_size=True)
-        num_classes=100
-        train_dataset_len=50000
+            data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True, big_size=True)
+        num_classes = 100
+        train_dataset_len = 50000
+        prefetch_fn = None
     else:
-        train_loader, val_loader=load_imagenet(data_path,train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,delay_toTensor=True)
-        num_classes=1000
-        train_dataset_len=1281167
+        train_loader, val_loader = load_imagenet(data_path, train_batch_size, val_batch_size,
+                                                 num_workers=train_config['num_workers'], is_distributed=True, delay_toTensor=True)
+        num_classes = 1000
+        train_dataset_len = 1281167
+        prefetch_fn = data_prefetcher
 
-    assert train_config['model'] in ['small' ,'large'], 'only support model "small" & "large"'
-
-
-    model = Hypernet(mode=train_config['model'], num_classes=num_classes,dropfc_rate=train_config['dropfc_rate'])
+    model_mode = train_config['model'].lower()
+    assert model_mode in [
+        'small', 'large'], 'only support model "small" & "large"'
+    model = Hypernet(mode=model_mode, num_classes=num_classes,
+                     dropfc_rate=train_config['dropfc_rate'])
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
 
     optimizer = torch.optim.SGD(
-        noBiasDecay_hypernet(model, lr=train_config['lr'],weight_decay=train_config['weight_decay'],num_choices=num_choices),
+        noBiasDecay_hypernet(
+            model, lr=train_config['lr'], weight_decay=train_config['weight_decay'], num_choices=num_choices),
         momentum=0.9,
         nesterov=True
     )
@@ -183,7 +192,7 @@ def main():
                 find_unused_parameters=True,
                 check_reduction=False)
 
-    lr_scheduler=CosineWarmupLR(
+    lr_scheduler = CosineWarmupLR(
         optimizer,
         epochs=train_config['epoch'],
         iter_in_one_epoch=train_dataset_len//train_config['train_batch_size'],
@@ -212,9 +221,10 @@ def main():
             val_config['checkpoint_filepath'], rank=local_rank)
         model.load_state_dict(checkpoint['state_dict'])
         begin_time = time.time()
-        prec1_val = evaluate(val_loader, model, criterion)
-        logger.log('val acc :{:.4f} time: {:.3f} s'.format(
-            prec1_val.avg, time.time()-begin_time))
+        prec1_val, prec5_val = evaluate(
+            val_loader, model, criterion, training=False, prefetch_fn=prefetch_fn)
+        logger.log(
+            f'val acc :{prec1_val.avg:.4f} time: {time.time()-begin_time:.3f} s')
         return
 
     for epoch in range(train_config['epoch']):
@@ -223,9 +233,10 @@ def main():
 
         begin_time = time.time()
 
-        prec1_train = train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch)
+        prec1_train = train(train_loader, model, criterion,
+                            optimizer, lr_scheduler, epoch, prefetch_fn=prefetch_fn)
         prec1_val, prec5_val = evaluate(
-            val_loader, model, criterion, training=True)
+            val_loader, model, criterion, training=True, prefetch_fn=prefetch_fn)
         # lr_scheduler.step()
 
         logger.log(f'train acc: {prec1_train.avg:.4f}')
@@ -269,7 +280,6 @@ if __name__ == "__main__":
 
     num_layers = 10 if train_config['model'] == 'small' else 14
     num_choices = 13
-
 
     logger = MPLog(args.log_path, local_rank)
     main()

@@ -127,4 +127,8 @@ dmypy.json
 test*.py
 *.pickle
 *.log
-/debug/
+/debug
+/checkpoint/*
+
+*resume.sh
+*resume.py

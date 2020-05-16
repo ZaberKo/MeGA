@@ -224,3 +224,48 @@ class CosineAnnealingWarmRestarts2(_LRScheduler):
                 param_group['lr'] = lr
 
         self._last_lr = [group['lr'] for group in self.optimizer.param_groups]
+
+
+if __name__ == "__main__":
+    import torch
+    import torch.nn as nn
+    import matplotlib.pyplot as plt
+    lr=0.05
+
+
+    model=nn.Linear(10,4)
+
+    optimizer=torch.optim.SGD(model.parameters(),lr,momentum=0.9,weight_decay=1e-5)
+
+
+    epochs=100
+    dataset_size=100
+    T_0=10
+    lr_scheduler=CosineAnnealingWarmRestarts(optimizer,T_0, T_mult=2, eta_min=0, T_warm=2, decay=1., last_epoch=-1)
+    lrs=[]
+    for epoch in range(epochs):
+        for i in range(dataset_size):
+            lrs.append(lr_scheduler.get_lr()[0])
+            lr_scheduler.step(epoch+(i+1)/dataset_size)
+    plt.figure()
+    plt.plot(lrs)
+    plt.xlabel('iterations')
+    plt.ylabel('lr')
+    plt.savefig('a1.png')
+
+    epochs=100
+    dataset_size=500
+    T_0=10
+    lr_scheduler=CosineAnnealingWarmRestarts2(optimizer,T_0, T_mult=1, eta_min=0, warmup_epochs=5, decay_rate=1, last_epoch=-1)
+
+    lrs=[]
+    for epoch in range(epochs):
+        for i in range(dataset_size):
+            lrs.append(lr_scheduler.get_lr()[0])
+            lr_scheduler.step(epoch+(i+1)/dataset_size)
+
+    plt.figure()
+    plt.plot(lrs)
+    plt.xlabel('iterations')
+    plt.ylabel('lr')
+    plt.savefig('a2.png')

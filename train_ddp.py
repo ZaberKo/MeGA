@@ -29,7 +29,7 @@ from mplog import MPLog
 logger = None
 
 
-def evaluate(val_loader, model, criterion, training=False):
+def evaluate(val_loader, model, criterion, training=False,prefetch_fn=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -37,13 +37,15 @@ def evaluate(val_loader, model, criterion, training=False):
 
     model.eval()
 
+    if prefetch_fn is not None:
+        val_loader=prefetch_fn(val_loader)
+
     with torch.no_grad():
         begin_time = time.time()
         for step, data in enumerate(val_loader):
-            data = tuple(t.cuda() for t in data)
+            if prefetch_fn is None:
+                data = tuple(t.cuda() for t in data)
             images, labels = data
-            loss_list = []
-            prec1_list = []
 
             output = model(images)
             loss = criterion(output, labels)
@@ -67,7 +69,7 @@ def evaluate(val_loader, model, criterion, training=False):
     return top1, top5
 
 
-def train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch):
+def train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch,prefetch_fn=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -76,15 +78,16 @@ def train(train_loader, model, criterion,  optimizer, lr_scheduler,epoch):
     model.train()
 
     train_loader.sampler.set_epoch(epoch)
+    if prefetch_fn is not None:
+        train_loader=prefetch_fn(train_loader)
 
     for step, data in enumerate(train_loader):
         begin_time = time.time()
-        data = tuple(t.cuda() for t in data)
+        if prefetch_fn is None:
+            data = tuple(t.cuda() for t in data)
         images, labels = data
 
         optimizer.zero_grad()
-
-
         output = model(images)
         loss = criterion(output, labels)
         prec1, = accuracy(output.detach(), labels, topk=(1,))
@@ -133,24 +136,18 @@ def main():
         train_loader, val_loader = load_cifar100(
             data_path, train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,big_size=True)
         num_classes=100
-        train_dataset_len=50000 
+        train_dataset_len=50000
+        prefetch_fn = None
     else:
         train_loader, val_loader=load_imagenet(data_path,train_batch_size, val_batch_size, num_workers=train_config['num_workers'], is_distributed=True,delay_toTensor=True)
         num_classes=1000
         train_dataset_len=1281167
+        prefetch_fn = data_prefetcher
 
     model = MeGA(model_config, cifar_flag=False,dropfc_rate=train_config['dropfc_rate'],num_classes=num_classes)
 
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.cuda()
-
-    # optimizer = torch.optim.SGD(
-    #     model.parameters(),
-    #     lr=train_config['lr'],
-    #     momentum=0.9,
-    #     weight_decay=1e-5,
-    #     nesterov=True
-    # )
 
     optimizer=torch.optim.SGD(
         noBiasDecay(model,lr=train_config['lr'],weight_decay=train_config['weight_decay']),
@@ -213,7 +210,7 @@ def main():
             val_config['checkpoint_filepath'], rank=local_rank)
         model.load_state_dict(checkpoint['state_dict'])
         begin_time = time.time()
-        prec1_val, prec5_val = evaluate(val_loader, model, criterion)
+        prec1_val, prec5_val = evaluate(val_loader, model, criterion,training=False, prefetch_fn=prefetch_fn)
         logger.log(
             f'val acc :{prec1_val.avg:.4f} time: {time.time()-begin_time:.3f} s')
         return
@@ -224,8 +221,8 @@ def main():
 
         begin_time = time.time()
 
-        prec1_train = train(train_loader, model, criterion,  optimizer,lr_scheduler, epoch)
-        prec1_val, prec5_val = evaluate(val_loader, model, criterion, training=True)
+        prec1_train = train(train_loader, model, criterion,  optimizer,lr_scheduler, epoch,prefetch_fn=prefetch_fn)
+        prec1_val, prec5_val = evaluate(val_loader, model, criterion, training=True,prefetch_fn=prefetch_fn)
         # lr_scheduler.step()
         # update_dropout_schedule(model)
 
@@ -270,5 +267,5 @@ if __name__ == "__main__":
 
     logger=MPLog(args.log_path,local_rank)
     # model_config = gene2config([3 for i in range(14)],cifar=True)
-    model_config = gene2config(gene=[11 for i in range(14)],multiplier=1)
+    model_config = gene2config(gene='large',multiplier=1)
     main()

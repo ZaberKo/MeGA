@@ -98,6 +98,14 @@ def gene2config(gene=None,multiplier=1):
 
     if gene is None:
         return template_large
+    elif isinstance(gene,str):
+        gene=gene.lower()
+        if gene=='small':
+            return template_small
+        elif gene=='large':
+            return template_large
+        else:
+            raise ValueError('wrong gene string')
 
     assert len(gene) in [14,10], 'the length of gene mast be 14 or 10'
     if len(gene)==14:

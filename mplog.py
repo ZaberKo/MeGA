@@ -23,4 +23,4 @@ class MPLog(object):
 
     def log(self,msg):
         if self.rank==LOG_MASTER_RANK:
-            self.f.write(msg+'\n')
+            self.f.write(str(msg)+'\n')

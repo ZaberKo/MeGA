@@ -23,12 +23,15 @@ train_hypernet_config:
 
 val_hypernet_config:
     val_batch_size: 2048
-    checkpoint_filepath: "./checkpoint/hypernet/hypernet_500.pth"
+    checkpoint_filepath: "./checkpoint/hypernet/hypernet_32.pth"
 
 
 search_config:
+    model: 'large'
+    dataset: "imagenet"
     val_batch_size: 2500
-    checkpoint_filepath: "./checkpoint/hypernet/hypernet_500.pth"
+    num_workers: 4
+    checkpoint_filepath: "./checkpoint/hypernet/hypernet_32.pth"
 
 
 
